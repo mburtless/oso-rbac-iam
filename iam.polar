@@ -51,13 +51,13 @@ conditions_hold(policy, resource) if
     );
 
 # matchAttributes type policy
-check_condition(condition, resource) if
+check_conditions(condition, resource) if
     condition.Type = "matchAttributes" and
     forall([k, v] in condition.Value,
         resource.(k) = v
     );
 
 # matchSuffix type policy
-check_condition(condition, resource) if
+check_conditions(condition, resource) if
     condition.Type = "matchSuffix" and
     resource.SuffixMatch(condition.Value);
