@@ -57,7 +57,7 @@ func initOso() error {
 	osoClient.RegisterClass(reflect.TypeOf(User{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(Role{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(Policy{}), nil)
-	if err := osoClient.RegisterClass(reflect.TypeOf(ResourceIdentifierV2("t")), nil); err != nil {
+	if err := osoClient.RegisterClass(reflect.TypeOf(PolicyResourceName("foo")), nil); err != nil {
 		return err
 	}
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/gobwas/glob"
@@ -14,8 +13,8 @@ const (
 )
 
 var (
-	errBadResourceID = fmt.Errorf("improperly formatted resource ID")
-	errBadNRN = fmt.Errorf("improperly formated NRN")
+	errBadResourceID   = fmt.Errorf("improperly formatted resource ID")
+	errBadResourceName = fmt.Errorf("improperly formated resource name")
 )
 
 // Org relation not yet implemented
@@ -47,17 +46,11 @@ var rolesDb = []Role{
 			{
 				Effect: Allow,
 				Actions: []string{"view"},
-				/*Resource: ResourceIdentifier{
-					Type: "zone", Id: "*",
-				},*/
 				Resource: "oso:0:zone/*",
 			},
 			{
 				Effect: Allow,
 				Actions: []string{"delete"},
-				/*Resource: ResourceIdentifier{
-					Type: "zone", Id: "1",
-				},*/
 				Resource: "oso:0:zone/react.net",
 			},
 		},
@@ -70,17 +63,11 @@ var rolesDb = []Role{
 			{
 				Effect: Allow,
 				Actions: []string{"delete"},
-				/*Resource: ResourceIdentifier{
-					Type: "zone", Id: "*",
-				},*/
 				Resource: "oso:0:zone/*",
 			},
 			{
 				Effect: Deny,
 				Actions: []string{"delete"},
-				/*Resource: ResourceIdentifier{
-					Type: "zone", Id: "1",
-				},*/
 				Resource: "oso:0:zone/react.net",
 			},
 		},
@@ -147,9 +134,9 @@ func GetCurrentUser(apiKey string) (*User, error)  {
 
 // Policy resource
 type Policy struct {
-	Effect string
-	Actions []string
-	Resource ResourceIdentifierV2
+	Effect     string
+	Actions    []string
+	Resource   PolicyResourceName
 	Conditions []Condition
 }
 
@@ -159,46 +146,31 @@ Type string
 Value interface{}
 }
 
-// ResourceIdentifier modifier for policies
-type ResourceIdentifier struct {
-	Type string
-	Id string
-}
+// PolicyResourceName is a resource name modifier for use in Policies
+type PolicyResourceName string
 
-// IdToInt converts ID of ResourceIdentifier to int for comparison to native ID of resource in polar policy
-func (r ResourceIdentifier) IdToInt() int {
-	id, err := strconv.Atoi(r.Id)
-	if err != nil {
-		return -1
-	}
-	return id
-}
-
-// ResourceIdentifierV2 is a resource identifier modifier based solely on namespacing
-type ResourceIdentifierV2 string
-
-// ContainsNRN checks if resource identifier contains given NRN
-func (r ResourceIdentifierV2) ContainsNRN(namespace string) bool {
-	orgIDinR, rsrcIDinR, err := SplitNRN(string(r))
+// ContainsResourceName checks if policy resource name contains given resource name
+func (prn PolicyResourceName) ContainsResourceName(rn string) bool {
+	orgIDinPRN, rIDinPRN, err := SplitResourceName(string(prn))
 	if err != nil {
 		return false
 	}
-	orgIDinN, rsrcIDinN, err := SplitNRN(namespace)
+	orgIDinRN,rIDinRN, err := SplitResourceName(rn)
 	if err != nil {
 		return false
 	}
 	// match on org id
-	if orgIDinR != "*" && orgIDinR != orgIDinN {
+	if orgIDinPRN != "*" && orgIDinPRN != orgIDinRN {
 		return false
 	}
 	// match on resource ID
-	g, _ := glob.Compile(rsrcIDinR)
-	return g.Match(rsrcIDinN)
+	g, _ := glob.Compile(rIDinPRN)
+	return g.Match(rIDinRN)
 }
 
 // GetType returns resource type in resource's NRN
-func (r ResourceIdentifierV2) GetType() (string, error) {
-	rID, err := r.GetResourceID()
+func (prn PolicyResourceName) GetType() (string, error) {
+	rID, err := prn.GetResourceID()
 	if err != nil {
 		return "", err
 	}
@@ -210,36 +182,37 @@ func (r ResourceIdentifierV2) GetType() (string, error) {
 }
 
 // IsType returns true if resource is given type t
-func (r ResourceIdentifierV2) IsType(t string) bool {
-	rType, err := r.GetType()
+func (prn PolicyResourceName) IsType(t string) bool {
+	rType, err := prn.GetType()
 	if err != nil {
 		return false
 	}
 	return rType == t
 }
 
-func (r ResourceIdentifierV2) GetResourceID() (string, error) {
-	_, rID, err := SplitNRN(string(r))
+func (prn PolicyResourceName) GetResourceID() (string, error) {
+	_, rID, err := SplitResourceName(string(prn))
 	if err != nil {
 		return "", err
 	}
 	return rID, nil
 }
 
-func SplitNRN(nrn string) (orgID string, rID string, err error) {
+// SplitResourceName splits a resource name into org ID and resource ID
+func SplitResourceName(nrn string) (orgID string, rID string, err error) {
 	s := strings.Split(nrn, ":")
 	if len(s) != 3 {
-		return "", "", errBadNRN
+		return "", "", errBadResourceName
 	}
 	return s[1], s[2], nil
 }
 
 // Zone resource
 type Zone struct {
-	Id   int
-	Name string
-	Org int
-	Nrn string
+	Id           int
+	Name         string
+	Org          int
+	ResourceName string
 }
 
 // SuffixMatch returns True if zone name has given suffix
@@ -248,10 +221,10 @@ func (z Zone) SuffixMatch(suffix string) bool {
 }
 
 var zonesDb = []Zone{
-	{Id: 0, Name: "gmail.com", Org: 0, Nrn: "oso:0:zone/gmail.com"},
-	{Id: 1, Name: "react.net", Org: 0, Nrn: "oso:0:zone/react.net"},
-	{Id: 2, Name: "oso.com", Org: 0, Nrn: "oso:0:zone/oso.com"},
-	{Id: 3, Name: "authz.net", Org: 0, Nrn: "oso:0:zone/authz.net"},
+	{Id: 0, Name: "gmail.com", Org: 0, ResourceName: "oso:0:zone/gmail.com"},
+	{Id: 1, Name: "react.net", Org: 0, ResourceName: "oso:0:zone/react.net"},
+	{Id: 2, Name: "oso.com", Org: 0, ResourceName: "oso:0:zone/oso.com"},
+	{Id: 3, Name: "authz.net", Org: 0, ResourceName: "oso:0:zone/authz.net"},
 }
 
 // GetZoneById fetches a zone resource by it's ID
@@ -265,7 +238,7 @@ func GetZoneById(id int) (*Zone, error) {
 // GetZoneByNrn fetches a zone resource by it's NRN
 func GetZoneByNrn(nrn string) (*Zone, error) {
 	for _, z := range zonesDb {
-		if z.Nrn == nrn {
+		if z.ResourceName == nrn {
 			return &z, nil
 		}
 	}
