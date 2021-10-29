@@ -35,13 +35,17 @@ policy_permits_action(policy, action) if
 
 # either policy allows all zone resources
 resource_matches(policy, _resource: Zone) if
-    policy.Resource.Type = "zone" and
-    policy.Resource.Id = "*";
+    #policy.Resource.Type = "zone" and
+    policy.Resource.IsType("zone") = true and
+    policy.Resource = "*";
 
 # or policy allows specific zone
 resource_matches(policy, resource: Zone) if
-    policy.Resource.Type = "zone" and
-    policy.Resource.IdToInt() = resource.Id;
+    # Type of resource in policy's nrn is zone
+    # TODO: is this check necessary given namespace match?
+    policy.Resource.IsType("zone") = true and
+    #  Zone is enclosed in policy's nrn
+    policy.Resource.ContainsNRN(resource.Nrn);
 
 # all conditions in policy must pass
 conditions_hold(policy, resource) if

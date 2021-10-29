@@ -57,7 +57,10 @@ func initOso() error {
 	osoClient.RegisterClass(reflect.TypeOf(User{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(Role{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(Policy{}), nil)
-	osoClient.RegisterClass(reflect.TypeOf(ResourceIdentifier{}), nil)
+	if err := osoClient.RegisterClass(reflect.TypeOf(ResourceIdentifierV2("t")), nil); err != nil {
+		return err
+	}
+
 
 	if err := osoClient.LoadFiles([]string{"iam.polar"}); err != nil {
 		return err
