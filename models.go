@@ -9,7 +9,7 @@ import (
 
 const (
 	Allow string = "allow"
-	Deny string = "deny"
+	Deny  string = "deny"
 )
 
 var (
@@ -19,7 +19,7 @@ var (
 
 // Org relation not yet implemented
 type Org struct {
-	Id int
+	Id   int
 	Name string
 }
 
@@ -29,8 +29,8 @@ var orgsDb = []Org{
 
 // Role resource
 type Role struct {
-	Id int
-	Name   string
+	Id       int
+	Name     string
 	Policies []Policy
 
 	// These would be FKs
@@ -39,35 +39,35 @@ type Role struct {
 
 var rolesDb = []Role{
 	{
-		Id: 0,
+		Id:   0,
 		Name: "viewZonesAndDeleteOne",
-		Org: 0,
+		Org:  0,
 		Policies: []Policy{
 			{
-				Effect: Allow,
-				Actions: []string{"view"},
+				Effect:   Allow,
+				Actions:  []string{"view"},
 				Resource: "oso:0:zone/*",
 			},
 			{
-				Effect: Allow,
-				Actions: []string{"delete"},
+				Effect:   Allow,
+				Actions:  []string{"delete"},
 				Resource: "oso:0:zone/react.net",
 			},
 		},
 	},
 	{
-		Id: 1,
+		Id:   1,
 		Name: "deleteZonesExceptOne",
-		Org: 0,
+		Org:  0,
 		Policies: []Policy{
 			{
-				Effect: Allow,
-				Actions: []string{"delete"},
+				Effect:   Allow,
+				Actions:  []string{"delete"},
 				Resource: "oso:0:zone/*",
 			},
 			{
-				Effect: Deny,
-				Actions: []string{"delete"},
+				Effect:   Deny,
+				Actions:  []string{"delete"},
 				Resource: "oso:0:zone/react.net",
 			},
 		},
@@ -84,12 +84,12 @@ func GetRoleById(id int) (*Role, error) {
 
 // User resource
 type User struct {
-	Id int
-	Name string
+	Id     int
+	Name   string
 	ApiKey string
 	// These would be FKs
 	Roles []int
-	Org int
+	Org   int
 }
 
 // GetRoles returns slice of all role objects assigned to a user
@@ -107,23 +107,23 @@ func (u User) GetRoles() []Role {
 
 var usersDb = map[string]User{
 	"larry": {
-		Id: 0,
-		Name: "larry",
-		Roles: []int{0},
-		Org: 0,
+		Id:     0,
+		Name:   "larry",
+		Roles:  []int{0},
+		Org:    0,
 		ApiKey: "larry",
 	},
 	"bob": {
-		Id: 0,
-		Name: "bob",
-		Roles: []int{1},
-		Org: 0,
+		Id:     0,
+		Name:   "bob",
+		Roles:  []int{1},
+		Org:    0,
 		ApiKey: "bob",
 	},
 }
 
 // GetCurrentUser returns the User object that corresponds to the provided apiKey
-func GetCurrentUser(apiKey string) (*User, error)  {
+func GetCurrentUser(apiKey string) (*User, error) {
 	for _, u := range usersDb {
 		if u.ApiKey == apiKey {
 			return &u, nil
@@ -142,8 +142,8 @@ type Policy struct {
 
 // Condition modifier for policies
 type Condition struct {
-Type string
-Value interface{}
+	Type  string
+	Value interface{}
 }
 
 // PolicyResourceName is a resource name modifier for use in Policies
@@ -155,7 +155,7 @@ func (prn PolicyResourceName) ContainsResourceName(rn string) bool {
 	if err != nil {
 		return false
 	}
-	orgIDinRN,rIDinRN, err := SplitResourceName(rn)
+	orgIDinRN, rIDinRN, err := SplitResourceName(rn)
 	if err != nil {
 		return false
 	}

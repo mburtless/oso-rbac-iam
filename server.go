@@ -13,7 +13,7 @@ import (
 var osoClient oso.Oso
 
 func main() {
-	if err := initOso(); err != nil{
+	if err := initOso(); err != nil {
 		log.Fatalf("Failed to initialize Oso: %s", err.Error())
 	}
 
@@ -60,7 +60,6 @@ func initOso() error {
 	if err := osoClient.RegisterClass(reflect.TypeOf(PolicyResourceName("foo")), nil); err != nil {
 		return err
 	}
-
 
 	if err := osoClient.LoadFiles([]string{"iam.polar"}); err != nil {
 		return err
