@@ -1,0 +1,6 @@
+[psql]
+dbname = "oso-rbac-iam"
+user = "postgres"
+pass = "mysecretpassword"
+host = "localhost"
+sslmode = "disable"
