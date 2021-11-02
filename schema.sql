@@ -65,12 +65,14 @@ INSERT INTO zone (name, resource_name, org_id) VALUES ('authz.com', 'oso:0:zone/
 
 /* policies */
 INSERT INTO policy (name, effect, actions, resource_name) VALUES ('viewZones', 'allow', '{"view"}', 'oso:0:zone/*');
+INSERT INTO policy (name, effect, actions, resource_name) VALUES ('deleteOneZone', 'allow', '{"delete"}', 'oso:0:zone/react.net');
 
 /* roles */
-INSERT INTO role (name, org_id) VALUES ('viewZones', 1);
+INSERT INTO role (name, org_id) VALUES ('viewZonesAndDeleteOne', 1);
 
 /* join policies to roles */
 INSERT INTO role_policies (role_id, policy_id) VALUES (1, 1);
+INSERT INTO role_policies (role_id, policy_id) VALUES (1, 2);
 
 /* users */
 INSERT INTO "user" (name, api_key, org_id) VALUES ('bob', 'bob', 1);
