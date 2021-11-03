@@ -79,15 +79,16 @@ func initOso() error {
 	osoClient.RegisterClass(reflect.TypeOf(Zone{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(User{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(Role{}), nil)
-	osoClient.RegisterClass(reflect.TypeOf(Policy{}), nil)
-	if err := osoClient.RegisterClass(reflect.TypeOf(PolicyResourceName("foo")), nil); err != nil {
+	osoClient.RegisterClass(reflect.TypeOf(RolePolicy{}), nil)
+	*/
+	if err := osoClient.RegisterClass(reflect.TypeOf(datastore.PolicyResourceName("foo")), nil); err != nil {
 		return err
 	}
-	*/
 	osoClient.RegisterClass(reflect.TypeOf(models.Zone{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(models.User{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(models.Role{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(models.Policy{}), nil)
+	osoClient.RegisterClass(reflect.TypeOf(datastore.RolePolicy{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(datastore.DerivedRole{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(DerivedUser{}), nil)
 

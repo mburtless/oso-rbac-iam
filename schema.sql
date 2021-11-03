@@ -17,7 +17,7 @@ create table policy
     name text NOT NULL,
     effect text NOT NULL,
     actions text[],
-    resource_name text,
+    resource_name text NOT NULL,
     conditions policy_condition[]
 );
 
@@ -66,16 +66,26 @@ INSERT INTO zone (name, resource_name, org_id) VALUES ('authz.com', 'oso:0:zone/
 /* policies */
 INSERT INTO policy (name, effect, actions, resource_name) VALUES ('viewZones', 'allow', '{"view"}', 'oso:0:zone/*');
 INSERT INTO policy (name, effect, actions, resource_name) VALUES ('deleteOneZone', 'allow', '{"delete"}', 'oso:0:zone/react.net');
+INSERT INTO policy (name, effect, actions, resource_name) VALUES ('viewOneZone', 'allow', '{"view"}', 'oso:0:zone/gmail.com');
+INSERT INTO policy (name, effect, actions, resource_name) VALUES ('deleteZones', 'allow', '{"delete"}', 'oso:0:zone/*');
 
 /* roles */
 INSERT INTO role (name, org_id) VALUES ('viewZonesAndDeleteOne', 1);
+INSERT INTO role (name, org_id) VALUES ('deleteZonesAndViewOne', 1);
 
 /* join policies to roles */
 INSERT INTO role_policies (role_id, policy_id) VALUES (1, 1);
 INSERT INTO role_policies (role_id, policy_id) VALUES (1, 2);
+INSERT INTO role_policies (role_id, policy_id) VALUES (2, 3);
+INSERT INTO role_policies (role_id, policy_id) VALUES (2, 4);
 
 /* users */
+/* bob can view all zones and delete react.net */
 INSERT INTO "user" (name, api_key, org_id) VALUES ('bob', 'bob', 1);
+/* tom can delete all zones and view gmail.com */
+INSERT INTO "user" (name, api_key, org_id) VALUES ('tom', 'tom', 1);
+
 
 /* join users to roles */
 INSERT INTO user_roles (user_id, role_id) VALUES (1, 1);
+INSERT INTO user_roles (user_id, role_id) VALUES (2, 2);
