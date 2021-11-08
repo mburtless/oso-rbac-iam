@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/friendsofgo/errors"
-	"github.com/volatiletech/null/v8"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/queries"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
@@ -24,9 +23,9 @@ import (
 
 // Role is an object representing the database table.
 type Role struct {
-	RoleID int      `boil:"role_id" json:"role_id" toml:"role_id" yaml:"role_id"`
-	Name   string   `boil:"name" json:"name" toml:"name" yaml:"name"`
-	OrgID  null.Int `boil:"org_id" json:"org_id,omitempty" toml:"org_id" yaml:"org_id,omitempty"`
+	RoleID int    `boil:"role_id" json:"role_id" toml:"role_id" yaml:"role_id"`
+	Name   string `boil:"name" json:"name" toml:"name" yaml:"name"`
+	OrgID  int    `boil:"org_id" json:"org_id" toml:"org_id" yaml:"org_id"`
 
 	R *roleR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L roleL  `boil:"-" json:"-" toml:"-" yaml:"-"`
@@ -54,38 +53,14 @@ var RoleTableColumns = struct {
 
 // Generated where
 
-type whereHelpernull_Int struct{ field string }
-
-func (w whereHelpernull_Int) EQ(x null.Int) qm.QueryMod {
-	return qmhelper.WhereNullEQ(w.field, false, x)
-}
-func (w whereHelpernull_Int) NEQ(x null.Int) qm.QueryMod {
-	return qmhelper.WhereNullEQ(w.field, true, x)
-}
-func (w whereHelpernull_Int) LT(x null.Int) qm.QueryMod {
-	return qmhelper.Where(w.field, qmhelper.LT, x)
-}
-func (w whereHelpernull_Int) LTE(x null.Int) qm.QueryMod {
-	return qmhelper.Where(w.field, qmhelper.LTE, x)
-}
-func (w whereHelpernull_Int) GT(x null.Int) qm.QueryMod {
-	return qmhelper.Where(w.field, qmhelper.GT, x)
-}
-func (w whereHelpernull_Int) GTE(x null.Int) qm.QueryMod {
-	return qmhelper.Where(w.field, qmhelper.GTE, x)
-}
-
-func (w whereHelpernull_Int) IsNull() qm.QueryMod    { return qmhelper.WhereIsNull(w.field) }
-func (w whereHelpernull_Int) IsNotNull() qm.QueryMod { return qmhelper.WhereIsNotNull(w.field) }
-
 var RoleWhere = struct {
 	RoleID whereHelperint
 	Name   whereHelperstring
-	OrgID  whereHelpernull_Int
+	OrgID  whereHelperint
 }{
 	RoleID: whereHelperint{field: "\"role\".\"role_id\""},
 	Name:   whereHelperstring{field: "\"role\".\"name\""},
-	OrgID:  whereHelpernull_Int{field: "\"role\".\"org_id\""},
+	OrgID:  whereHelperint{field: "\"role\".\"org_id\""},
 }
 
 // RoleRels is where relationship names are stored.
@@ -471,9 +446,7 @@ func (roleL) LoadOrg(ctx context.Context, e boil.ContextExecutor, singular bool,
 		if object.R == nil {
 			object.R = &roleR{}
 		}
-		if !queries.IsNil(object.OrgID) {
-			args = append(args, object.OrgID)
-		}
+		args = append(args, object.OrgID)
 
 	} else {
 	Outer:
@@ -483,14 +456,12 @@ func (roleL) LoadOrg(ctx context.Context, e boil.ContextExecutor, singular bool,
 			}
 
 			for _, a := range args {
-				if queries.Equal(a, obj.OrgID) {
+				if a == obj.OrgID {
 					continue Outer
 				}
 			}
 
-			if !queries.IsNil(obj.OrgID) {
-				args = append(args, obj.OrgID)
-			}
+			args = append(args, obj.OrgID)
 
 		}
 	}
@@ -548,7 +519,7 @@ func (roleL) LoadOrg(ctx context.Context, e boil.ContextExecutor, singular bool,
 
 	for _, local := range slice {
 		for _, foreign := range resultSlice {
-			if queries.Equal(local.OrgID, foreign.OrgID) {
+			if local.OrgID == foreign.OrgID {
 				local.R.Org = foreign
 				if foreign.R == nil {
 					foreign.R = &orgR{}
@@ -819,7 +790,7 @@ func (o *Role) SetOrg(ctx context.Context, exec boil.ContextExecutor, insert boo
 		return errors.Wrap(err, "failed to update local table")
 	}
 
-	queries.Assign(&o.OrgID, related.OrgID)
+	o.OrgID = related.OrgID
 	if o.R == nil {
 		o.R = &roleR{
 			Org: related,
@@ -836,39 +807,6 @@ func (o *Role) SetOrg(ctx context.Context, exec boil.ContextExecutor, insert boo
 		related.R.Roles = append(related.R.Roles, o)
 	}
 
-	return nil
-}
-
-// RemoveOrg relationship.
-// Sets o.R.Org to nil.
-// Removes o from all passed in related items' relationships struct (Optional).
-func (o *Role) RemoveOrg(ctx context.Context, exec boil.ContextExecutor, related *Org) error {
-	var err error
-
-	queries.SetScanner(&o.OrgID, nil)
-	if _, err = o.Update(ctx, exec, boil.Whitelist("org_id")); err != nil {
-		return errors.Wrap(err, "failed to update local table")
-	}
-
-	if o.R != nil {
-		o.R.Org = nil
-	}
-	if related == nil || related.R == nil {
-		return nil
-	}
-
-	for i, ri := range related.R.Roles {
-		if queries.Equal(o.OrgID, ri.OrgID) {
-			continue
-		}
-
-		ln := len(related.R.Roles)
-		if ln > 1 && i < ln-1 {
-			related.R.Roles[i] = related.R.Roles[ln-1]
-		}
-		related.R.Roles = related.R.Roles[:ln-1]
-		break
-	}
 	return nil
 }
 

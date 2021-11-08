@@ -61,6 +61,10 @@ func setup(ds datastore.Datastore) *fiber.App {
 		return getZoneRoute(c, ds)
 	})
 
+	app.Get("/zone", func(c *fiber.Ctx) error {
+		return listZonesRoute(c, ds)
+	})
+
 	app.Delete("/zone/:zoneId", func(c *fiber.Ctx) error {
 		return deleteZoneRoute(c, ds)
 	})
@@ -81,15 +85,15 @@ func initOso() error {
 	osoClient.RegisterClass(reflect.TypeOf(Role{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(RolePolicy{}), nil)
 	*/
-	if err := osoClient.RegisterClass(reflect.TypeOf(datastore.PolicyResourceName("foo")), nil); err != nil {
+	if err := osoClient.RegisterClass(reflect.TypeOf(PolicyResourceName("foo")), nil); err != nil {
 		return err
 	}
 	osoClient.RegisterClass(reflect.TypeOf(models.Zone{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(models.User{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(models.Role{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(models.Policy{}), nil)
-	osoClient.RegisterClass(reflect.TypeOf(datastore.RolePolicy{}), nil)
-	osoClient.RegisterClass(reflect.TypeOf(datastore.DerivedRole{}), nil)
+	osoClient.RegisterClass(reflect.TypeOf(RolePolicy{}), nil)
+	osoClient.RegisterClass(reflect.TypeOf(DerivedRole{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(DerivedUser{}), nil)
 
 	if err := osoClient.LoadFiles([]string{"iam.polar"}); err != nil {

@@ -815,7 +815,7 @@ func testUserToOneOrgUsingOrg(t *testing.T) {
 	var foreign Org
 
 	seed := randomize.NewSeed()
-	if err := randomize.Struct(seed, &local, userDBTypes, true, userColumnsWithDefault...); err != nil {
+	if err := randomize.Struct(seed, &local, userDBTypes, false, userColumnsWithDefault...); err != nil {
 		t.Errorf("Unable to randomize User struct: %s", err)
 	}
 	if err := randomize.Struct(seed, &foreign, orgDBTypes, false, orgColumnsWithDefault...); err != nil {
@@ -826,7 +826,7 @@ func testUserToOneOrgUsingOrg(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	queries.Assign(&local.OrgID, foreign.OrgID)
+	local.OrgID = foreign.OrgID
 	if err := local.Insert(ctx, tx, boil.Infer()); err != nil {
 		t.Fatal(err)
 	}
@@ -836,7 +836,7 @@ func testUserToOneOrgUsingOrg(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !queries.Equal(check.OrgID, foreign.OrgID) {
+	if check.OrgID != foreign.OrgID {
 		t.Errorf("want: %v, got %v", foreign.OrgID, check.OrgID)
 	}
 
@@ -898,7 +898,7 @@ func testUserToOneSetOpOrgUsingOrg(t *testing.T) {
 		if x.R.Users[0] != &a {
 			t.Error("failed to append to foreign relationship struct")
 		}
-		if !queries.Equal(a.OrgID, x.OrgID) {
+		if a.OrgID != x.OrgID {
 			t.Error("foreign key was wrong value", a.OrgID)
 		}
 
@@ -909,60 +909,9 @@ func testUserToOneSetOpOrgUsingOrg(t *testing.T) {
 			t.Fatal("failed to reload", err)
 		}
 
-		if !queries.Equal(a.OrgID, x.OrgID) {
+		if a.OrgID != x.OrgID {
 			t.Error("foreign key was wrong value", a.OrgID, x.OrgID)
 		}
-	}
-}
-
-func testUserToOneRemoveOpOrgUsingOrg(t *testing.T) {
-	var err error
-
-	ctx := context.Background()
-	tx := MustTx(boil.BeginTx(ctx, nil))
-	defer func() { _ = tx.Rollback() }()
-
-	var a User
-	var b Org
-
-	seed := randomize.NewSeed()
-	if err = randomize.Struct(seed, &a, userDBTypes, false, strmangle.SetComplement(userPrimaryKeyColumns, userColumnsWithoutDefault)...); err != nil {
-		t.Fatal(err)
-	}
-	if err = randomize.Struct(seed, &b, orgDBTypes, false, strmangle.SetComplement(orgPrimaryKeyColumns, orgColumnsWithoutDefault)...); err != nil {
-		t.Fatal(err)
-	}
-
-	if err = a.Insert(ctx, tx, boil.Infer()); err != nil {
-		t.Fatal(err)
-	}
-
-	if err = a.SetOrg(ctx, tx, true, &b); err != nil {
-		t.Fatal(err)
-	}
-
-	if err = a.RemoveOrg(ctx, tx, &b); err != nil {
-		t.Error("failed to remove relationship")
-	}
-
-	count, err := a.Org().Count(ctx, tx)
-	if err != nil {
-		t.Error(err)
-	}
-	if count != 0 {
-		t.Error("want no relationships remaining")
-	}
-
-	if a.R.Org != nil {
-		t.Error("R struct entry should be nil")
-	}
-
-	if !queries.IsValuerNil(a.OrgID) {
-		t.Error("foreign key value should be nil")
-	}
-
-	if len(b.R.Users) != 0 {
-		t.Error("failed to remove a from b's relationships")
 	}
 }
 

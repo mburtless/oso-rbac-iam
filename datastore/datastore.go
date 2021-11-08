@@ -3,24 +3,13 @@ package datastore
 import (
 	"context"
 	"database/sql"
-	"fmt"
-	"github.com/gobwas/glob"
 	"github.com/mburtless/oso-rbac-iam/models"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
-	"github.com/volatiletech/sqlboiler/v4/types"
 	"go.uber.org/zap"
 	"strings"
 )
 
-var (
-	errBadResourceID   = fmt.Errorf("improperly formatted resource ID")
-	errBadResourceName = fmt.Errorf("improperly formated resource name")
-)
 
-type Datastore struct {
-	db *sql.DB
-	logger *zap.SugaredLogger
-}
 
 // DenormalizedRole is the combination of a role and one of it's policies
 type DenormalizedRole struct {
@@ -28,120 +17,24 @@ type DenormalizedRole struct {
 	models.Policy `boil:",bind"`
 }
 
-// converts a slice of denormalized roles into a map of derived roles
-func toDerivedRoleMap(denormRoles []*DenormalizedRole) map[int]*DerivedRole {
-	derivedRoles := map[int]*DerivedRole{}
-	if len(denormRoles) == 0 {
-		return derivedRoles
-	}
-	for _, denormRole := range denormRoles {
-		// check if derived role already exists at index
-		if _, ok := derivedRoles[denormRole.Role.RoleID]; !ok {
-			// if not, populate it with current role
-			derivedRoles[denormRole.Role.RoleID] = &DerivedRole{
-				Role: denormRole.Role,
-				Policies: []*RolePolicy{},
-			}
-		}
-		// append policy
-		derivedRoles[denormRole.Role.RoleID].Policies = append(derivedRoles[denormRole.Role.RoleID].Policies, toPolicy(&denormRole.Policy))
-	}
-	return derivedRoles
+type Datastore interface {
+	FindZoneByID(ctx context.Context, id int) (*models.Zone, error)
+	ListZonesByOrgID(ctx context.Context, orgID int) (*models.ZoneSlice, error)
+	FindUserByKey(ctx context.Context, key string) (*models.User, error)
+	GetUserRoles(ctx context.Context, user *models.User) (models.RoleSlice, error)
+	GetUserRolesAndPolicies(ctx context.Context, userID int) ([]*DenormalizedRole, error)
 }
 
-// DerivedRole is the combination of a role and all of it's policies
-type DerivedRole struct {
-	models.Role
-	Policies []*RolePolicy
+type datastore struct {
+	db *sql.DB
+	logger *zap.SugaredLogger
 }
 
-// RolePolicy resource
-type RolePolicy struct {
-	Effect     string
-	Actions    []string
-	Resource   PolicyResourceName
-	Conditions types.StringArray
-}
-
-func toPolicy(policy *models.Policy) *RolePolicy {
-	return &RolePolicy{
-		Effect: policy.Effect,
-		Actions: policy.Actions,
-		Resource: PolicyResourceName(policy.ResourceName),
-		Conditions: policy.Conditions,
-	}
-}
-
-// Condition modifier for policies
-type Condition struct {
-	Type  string
-	Value interface{}
-}
-// PolicyResourceName is a resource name modifier for use in Policies
-type PolicyResourceName string
-
-// ContainsResourceName checks if policy resource name contains given resource name
-func (prn PolicyResourceName) ContainsResourceName(rn string) bool {
-	orgIDinPRN, rIDinPRN, err := SplitResourceName(string(prn))
-	if err != nil {
-		return false
-	}
-	orgIDinRN, rIDinRN, err := SplitResourceName(rn)
-	if err != nil {
-		return false
-	}
-	// match on org id
-	if orgIDinPRN != "*" && orgIDinPRN != orgIDinRN {
-		return false
-	}
-	// match on resource ID
-	g, _ := glob.Compile(rIDinPRN)
-	return g.Match(rIDinRN)
-}
-
-// GetType returns resource type in resource's NRN
-func (prn PolicyResourceName) GetType() (string, error) {
-	rID, err := prn.GetResourceID()
-	if err != nil {
-		return "", err
-	}
-	t := strings.Split(rID, "/")
-	if len(t) < 2 {
-		return "", errBadResourceID
-	}
-	return t[0], nil
-}
-
-// IsType returns true if resource is given type t
-func (prn PolicyResourceName) IsType(t string) bool {
-	rType, err := prn.GetType()
-	if err != nil {
-		return false
-	}
-	return rType == t
-}
-
-func (prn PolicyResourceName) GetResourceID() (string, error) {
-	_, rID, err := SplitResourceName(string(prn))
-	if err != nil {
-		return "", err
-	}
-	return rID, nil
-}
-
-// SplitResourceName splits a resource name into org ID and resource ID
-func SplitResourceName(nrn string) (orgID string, rID string, err error) {
-	s := strings.Split(nrn, ":")
-	if len(s) != 3 {
-		return "", "", errBadResourceName
-	}
-	return s[1], s[2], nil
-}
 func NewDatastore(db *sql.DB, l *zap.SugaredLogger) Datastore {
-	return Datastore{db: db, logger: l}
+	return &datastore{db: db, logger: l}
 }
 
-func (ds *Datastore) FindZoneByID(ctx context.Context, id int) (*models.Zone, error) {
+func (ds *datastore) FindZoneByID(ctx context.Context, id int) (*models.Zone, error) {
 	z, err := models.FindZone(ctx, ds.db, id)
 	if err != nil {
 		return nil, err
@@ -150,7 +43,16 @@ func (ds *Datastore) FindZoneByID(ctx context.Context, id int) (*models.Zone, er
 	return z, nil
 }
 
-func (ds *Datastore) FindUserByKey(ctx context.Context, key string) (*models.User, error) {
+func (ds *datastore) ListZonesByOrgID(ctx context.Context, orgID int) (*models.ZoneSlice, error) {
+	zs, err := models.Zones(qm.Where("org_id = ?", orgID)).All(ctx, ds.db)
+	if err != nil {
+		return nil, err
+	}
+	ds.logger.Debugw("found zones in PG", "zone", zs)
+	return &zs, nil
+}
+
+func (ds *datastore) FindUserByKey(ctx context.Context, key string) (*models.User, error) {
 	u, err := models.Users(qm.Where("api_key = ?", key)).One(ctx, ds.db)
 	if err != nil {
 		return nil, err
@@ -159,7 +61,7 @@ func (ds *Datastore) FindUserByKey(ctx context.Context, key string) (*models.Use
 	return u, nil
 }
 
-func (ds *Datastore) GetUserRoles(ctx context.Context, user *models.User) (models.RoleSlice, error) {
+func (ds *datastore) GetUserRoles(ctx context.Context, user *models.User) (models.RoleSlice, error) {
 	roles, err := user.Roles().All(ctx, ds.db)
 	if err != nil {
 		return nil, err
@@ -168,7 +70,7 @@ func (ds *Datastore) GetUserRoles(ctx context.Context, user *models.User) (model
 	return roles, nil
 }
 
-func (ds *Datastore) GetUserRolesAndPolicies(ctx context.Context, userID int) (map[int]*DerivedRole, error) {
+func (ds *datastore) GetUserRolesAndPolicies(ctx context.Context, userID int) ([]*DenormalizedRole, error) {
 	var dr []*DenormalizedRole
 	err := models.NewQuery(
 		qm.Select("role.*", "policy.*"),
@@ -183,9 +85,7 @@ func (ds *Datastore) GetUserRolesAndPolicies(ctx context.Context, userID int) (m
 		return nil, err
 	}
 	ds.logger.Debugw("found denorm roles for user", "roles", dr)
-	drs := toDerivedRoleMap(dr)
-	ds.logger.Debugw("found derived roles for user", "roles", drs)
-	return drs, nil
+	return dr, nil
 }
 
 // TODO: try to delete this by integrating matchers in a different way?

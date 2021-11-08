@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/friendsofgo/errors"
-	"github.com/volatiletech/null/v8"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/queries"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
@@ -24,10 +23,10 @@ import (
 
 // User is an object representing the database table.
 type User struct {
-	UserID int      `boil:"user_id" json:"user_id" toml:"user_id" yaml:"user_id"`
-	Name   string   `boil:"name" json:"name" toml:"name" yaml:"name"`
-	APIKey string   `boil:"api_key" json:"api_key" toml:"api_key" yaml:"api_key"`
-	OrgID  null.Int `boil:"org_id" json:"org_id,omitempty" toml:"org_id" yaml:"org_id,omitempty"`
+	UserID int    `boil:"user_id" json:"user_id" toml:"user_id" yaml:"user_id"`
+	Name   string `boil:"name" json:"name" toml:"name" yaml:"name"`
+	APIKey string `boil:"api_key" json:"api_key" toml:"api_key" yaml:"api_key"`
+	OrgID  int    `boil:"org_id" json:"org_id" toml:"org_id" yaml:"org_id"`
 
 	R *userR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L userL  `boil:"-" json:"-" toml:"-" yaml:"-"`
@@ -63,12 +62,12 @@ var UserWhere = struct {
 	UserID whereHelperint
 	Name   whereHelperstring
 	APIKey whereHelperstring
-	OrgID  whereHelpernull_Int
+	OrgID  whereHelperint
 }{
 	UserID: whereHelperint{field: "\"user\".\"user_id\""},
 	Name:   whereHelperstring{field: "\"user\".\"name\""},
 	APIKey: whereHelperstring{field: "\"user\".\"api_key\""},
-	OrgID:  whereHelpernull_Int{field: "\"user\".\"org_id\""},
+	OrgID:  whereHelperint{field: "\"user\".\"org_id\""},
 }
 
 // UserRels is where relationship names are stored.
@@ -429,9 +428,7 @@ func (userL) LoadOrg(ctx context.Context, e boil.ContextExecutor, singular bool,
 		if object.R == nil {
 			object.R = &userR{}
 		}
-		if !queries.IsNil(object.OrgID) {
-			args = append(args, object.OrgID)
-		}
+		args = append(args, object.OrgID)
 
 	} else {
 	Outer:
@@ -441,14 +438,12 @@ func (userL) LoadOrg(ctx context.Context, e boil.ContextExecutor, singular bool,
 			}
 
 			for _, a := range args {
-				if queries.Equal(a, obj.OrgID) {
+				if a == obj.OrgID {
 					continue Outer
 				}
 			}
 
-			if !queries.IsNil(obj.OrgID) {
-				args = append(args, obj.OrgID)
-			}
+			args = append(args, obj.OrgID)
 
 		}
 	}
@@ -506,7 +501,7 @@ func (userL) LoadOrg(ctx context.Context, e boil.ContextExecutor, singular bool,
 
 	for _, local := range slice {
 		for _, foreign := range resultSlice {
-			if queries.Equal(local.OrgID, foreign.OrgID) {
+			if local.OrgID == foreign.OrgID {
 				local.R.Org = foreign
 				if foreign.R == nil {
 					foreign.R = &orgR{}
@@ -662,7 +657,7 @@ func (o *User) SetOrg(ctx context.Context, exec boil.ContextExecutor, insert boo
 		return errors.Wrap(err, "failed to update local table")
 	}
 
-	queries.Assign(&o.OrgID, related.OrgID)
+	o.OrgID = related.OrgID
 	if o.R == nil {
 		o.R = &userR{
 			Org: related,
@@ -679,39 +674,6 @@ func (o *User) SetOrg(ctx context.Context, exec boil.ContextExecutor, insert boo
 		related.R.Users = append(related.R.Users, o)
 	}
 
-	return nil
-}
-
-// RemoveOrg relationship.
-// Sets o.R.Org to nil.
-// Removes o from all passed in related items' relationships struct (Optional).
-func (o *User) RemoveOrg(ctx context.Context, exec boil.ContextExecutor, related *Org) error {
-	var err error
-
-	queries.SetScanner(&o.OrgID, nil)
-	if _, err = o.Update(ctx, exec, boil.Whitelist("org_id")); err != nil {
-		return errors.Wrap(err, "failed to update local table")
-	}
-
-	if o.R != nil {
-		o.R.Org = nil
-	}
-	if related == nil || related.R == nil {
-		return nil
-	}
-
-	for i, ri := range related.R.Users {
-		if queries.Equal(o.OrgID, ri.OrgID) {
-			continue
-		}
-
-		ln := len(related.R.Users)
-		if ln > 1 && i < ln-1 {
-			related.R.Users[i] = related.R.Users[ln-1]
-		}
-		related.R.Users = related.R.Users[:ln-1]
-		break
-	}
 	return nil
 }
 

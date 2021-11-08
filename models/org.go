@@ -499,7 +499,7 @@ func (orgL) LoadRoles(ctx context.Context, e boil.ContextExecutor, singular bool
 			}
 
 			for _, a := range args {
-				if queries.Equal(a, obj.OrgID) {
+				if a == obj.OrgID {
 					continue Outer
 				}
 			}
@@ -557,7 +557,7 @@ func (orgL) LoadRoles(ctx context.Context, e boil.ContextExecutor, singular bool
 
 	for _, foreign := range resultSlice {
 		for _, local := range slice {
-			if queries.Equal(local.OrgID, foreign.OrgID) {
+			if local.OrgID == foreign.OrgID {
 				local.R.Roles = append(local.R.Roles, foreign)
 				if foreign.R == nil {
 					foreign.R = &roleR{}
@@ -597,7 +597,7 @@ func (orgL) LoadUsers(ctx context.Context, e boil.ContextExecutor, singular bool
 			}
 
 			for _, a := range args {
-				if queries.Equal(a, obj.OrgID) {
+				if a == obj.OrgID {
 					continue Outer
 				}
 			}
@@ -655,7 +655,7 @@ func (orgL) LoadUsers(ctx context.Context, e boil.ContextExecutor, singular bool
 
 	for _, foreign := range resultSlice {
 		for _, local := range slice {
-			if queries.Equal(local.OrgID, foreign.OrgID) {
+			if local.OrgID == foreign.OrgID {
 				local.R.Users = append(local.R.Users, foreign)
 				if foreign.R == nil {
 					foreign.R = &userR{}
@@ -775,7 +775,7 @@ func (o *Org) AddRoles(ctx context.Context, exec boil.ContextExecutor, insert bo
 	var err error
 	for _, rel := range related {
 		if insert {
-			queries.Assign(&rel.OrgID, o.OrgID)
+			rel.OrgID = o.OrgID
 			if err = rel.Insert(ctx, exec, boil.Infer()); err != nil {
 				return errors.Wrap(err, "failed to insert into foreign table")
 			}
@@ -796,7 +796,7 @@ func (o *Org) AddRoles(ctx context.Context, exec boil.ContextExecutor, insert bo
 				return errors.Wrap(err, "failed to update foreign table")
 			}
 
-			queries.Assign(&rel.OrgID, o.OrgID)
+			rel.OrgID = o.OrgID
 		}
 	}
 
@@ -820,80 +820,6 @@ func (o *Org) AddRoles(ctx context.Context, exec boil.ContextExecutor, insert bo
 	return nil
 }
 
-// SetRoles removes all previously related items of the
-// org replacing them completely with the passed
-// in related items, optionally inserting them as new records.
-// Sets o.R.Org's Roles accordingly.
-// Replaces o.R.Roles with related.
-// Sets related.R.Org's Roles accordingly.
-func (o *Org) SetRoles(ctx context.Context, exec boil.ContextExecutor, insert bool, related ...*Role) error {
-	query := "update \"role\" set \"org_id\" = null where \"org_id\" = $1"
-	values := []interface{}{o.OrgID}
-	if boil.IsDebug(ctx) {
-		writer := boil.DebugWriterFrom(ctx)
-		fmt.Fprintln(writer, query)
-		fmt.Fprintln(writer, values)
-	}
-	_, err := exec.ExecContext(ctx, query, values...)
-	if err != nil {
-		return errors.Wrap(err, "failed to remove relationships before set")
-	}
-
-	if o.R != nil {
-		for _, rel := range o.R.Roles {
-			queries.SetScanner(&rel.OrgID, nil)
-			if rel.R == nil {
-				continue
-			}
-
-			rel.R.Org = nil
-		}
-
-		o.R.Roles = nil
-	}
-	return o.AddRoles(ctx, exec, insert, related...)
-}
-
-// RemoveRoles relationships from objects passed in.
-// Removes related items from R.Roles (uses pointer comparison, removal does not keep order)
-// Sets related.R.Org.
-func (o *Org) RemoveRoles(ctx context.Context, exec boil.ContextExecutor, related ...*Role) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-	for _, rel := range related {
-		queries.SetScanner(&rel.OrgID, nil)
-		if rel.R != nil {
-			rel.R.Org = nil
-		}
-		if _, err = rel.Update(ctx, exec, boil.Whitelist("org_id")); err != nil {
-			return err
-		}
-	}
-	if o.R == nil {
-		return nil
-	}
-
-	for _, rel := range related {
-		for i, ri := range o.R.Roles {
-			if rel != ri {
-				continue
-			}
-
-			ln := len(o.R.Roles)
-			if ln > 1 && i < ln-1 {
-				o.R.Roles[i] = o.R.Roles[ln-1]
-			}
-			o.R.Roles = o.R.Roles[:ln-1]
-			break
-		}
-	}
-
-	return nil
-}
-
 // AddUsers adds the given related objects to the existing relationships
 // of the org, optionally inserting them as new records.
 // Appends related to o.R.Users.
@@ -902,7 +828,7 @@ func (o *Org) AddUsers(ctx context.Context, exec boil.ContextExecutor, insert bo
 	var err error
 	for _, rel := range related {
 		if insert {
-			queries.Assign(&rel.OrgID, o.OrgID)
+			rel.OrgID = o.OrgID
 			if err = rel.Insert(ctx, exec, boil.Infer()); err != nil {
 				return errors.Wrap(err, "failed to insert into foreign table")
 			}
@@ -923,7 +849,7 @@ func (o *Org) AddUsers(ctx context.Context, exec boil.ContextExecutor, insert bo
 				return errors.Wrap(err, "failed to update foreign table")
 			}
 
-			queries.Assign(&rel.OrgID, o.OrgID)
+			rel.OrgID = o.OrgID
 		}
 	}
 
@@ -944,80 +870,6 @@ func (o *Org) AddUsers(ctx context.Context, exec boil.ContextExecutor, insert bo
 			rel.R.Org = o
 		}
 	}
-	return nil
-}
-
-// SetUsers removes all previously related items of the
-// org replacing them completely with the passed
-// in related items, optionally inserting them as new records.
-// Sets o.R.Org's Users accordingly.
-// Replaces o.R.Users with related.
-// Sets related.R.Org's Users accordingly.
-func (o *Org) SetUsers(ctx context.Context, exec boil.ContextExecutor, insert bool, related ...*User) error {
-	query := "update \"user\" set \"org_id\" = null where \"org_id\" = $1"
-	values := []interface{}{o.OrgID}
-	if boil.IsDebug(ctx) {
-		writer := boil.DebugWriterFrom(ctx)
-		fmt.Fprintln(writer, query)
-		fmt.Fprintln(writer, values)
-	}
-	_, err := exec.ExecContext(ctx, query, values...)
-	if err != nil {
-		return errors.Wrap(err, "failed to remove relationships before set")
-	}
-
-	if o.R != nil {
-		for _, rel := range o.R.Users {
-			queries.SetScanner(&rel.OrgID, nil)
-			if rel.R == nil {
-				continue
-			}
-
-			rel.R.Org = nil
-		}
-
-		o.R.Users = nil
-	}
-	return o.AddUsers(ctx, exec, insert, related...)
-}
-
-// RemoveUsers relationships from objects passed in.
-// Removes related items from R.Users (uses pointer comparison, removal does not keep order)
-// Sets related.R.Org.
-func (o *Org) RemoveUsers(ctx context.Context, exec boil.ContextExecutor, related ...*User) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-	for _, rel := range related {
-		queries.SetScanner(&rel.OrgID, nil)
-		if rel.R != nil {
-			rel.R.Org = nil
-		}
-		if _, err = rel.Update(ctx, exec, boil.Whitelist("org_id")); err != nil {
-			return err
-		}
-	}
-	if o.R == nil {
-		return nil
-	}
-
-	for _, rel := range related {
-		for i, ri := range o.R.Users {
-			if rel != ri {
-				continue
-			}
-
-			ln := len(o.R.Users)
-			if ln > 1 && i < ln-1 {
-				o.R.Users[i] = o.R.Users[ln-1]
-			}
-			o.R.Users = o.R.Users[:ln-1]
-			break
-		}
-	}
-
 	return nil
 }
 

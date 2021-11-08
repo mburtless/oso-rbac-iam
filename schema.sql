@@ -24,7 +24,7 @@ create table policy
 create table role (
     role_id serial PRIMARY KEY NOT NULL,
     name text NOT NULL,
-    org_id INT REFERENCES org(org_id)
+    org_id INT REFERENCES org(org_id) NOT NULL
 );
 
 create table role_policies (
@@ -37,7 +37,7 @@ create table "user" (
     user_id serial PRIMARY KEY NOT NULL,
     name text NOT NULL,
     api_key text NOT NULL,
-    org_id INT references org(org_id)
+    org_id INT references org(org_id) NOT NULL
 );
 
 create table user_roles (

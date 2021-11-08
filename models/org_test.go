@@ -519,8 +519,9 @@ func testOrgToManyRoles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	queries.Assign(&b.OrgID, a.OrgID)
-	queries.Assign(&c.OrgID, a.OrgID)
+	b.OrgID = a.OrgID
+	c.OrgID = a.OrgID
+
 	if err = b.Insert(ctx, tx, boil.Infer()); err != nil {
 		t.Fatal(err)
 	}
@@ -535,10 +536,10 @@ func testOrgToManyRoles(t *testing.T) {
 
 	bFound, cFound := false, false
 	for _, v := range check {
-		if queries.Equal(v.OrgID, b.OrgID) {
+		if v.OrgID == b.OrgID {
 			bFound = true
 		}
-		if queries.Equal(v.OrgID, c.OrgID) {
+		if v.OrgID == c.OrgID {
 			cFound = true
 		}
 	}
@@ -596,8 +597,9 @@ func testOrgToManyUsers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	queries.Assign(&b.OrgID, a.OrgID)
-	queries.Assign(&c.OrgID, a.OrgID)
+	b.OrgID = a.OrgID
+	c.OrgID = a.OrgID
+
 	if err = b.Insert(ctx, tx, boil.Infer()); err != nil {
 		t.Fatal(err)
 	}
@@ -612,10 +614,10 @@ func testOrgToManyUsers(t *testing.T) {
 
 	bFound, cFound := false, false
 	for _, v := range check {
-		if queries.Equal(v.OrgID, b.OrgID) {
+		if v.OrgID == b.OrgID {
 			bFound = true
 		}
-		if queries.Equal(v.OrgID, c.OrgID) {
+		if v.OrgID == c.OrgID {
 			cFound = true
 		}
 	}
@@ -771,10 +773,10 @@ func testOrgToManyAddOpRoles(t *testing.T) {
 		first := x[0]
 		second := x[1]
 
-		if !queries.Equal(a.OrgID, first.OrgID) {
+		if a.OrgID != first.OrgID {
 			t.Error("foreign key was wrong value", a.OrgID, first.OrgID)
 		}
-		if !queries.Equal(a.OrgID, second.OrgID) {
+		if a.OrgID != second.OrgID {
 			t.Error("foreign key was wrong value", a.OrgID, second.OrgID)
 		}
 
@@ -801,182 +803,6 @@ func testOrgToManyAddOpRoles(t *testing.T) {
 		}
 	}
 }
-
-func testOrgToManySetOpRoles(t *testing.T) {
-	var err error
-
-	ctx := context.Background()
-	tx := MustTx(boil.BeginTx(ctx, nil))
-	defer func() { _ = tx.Rollback() }()
-
-	var a Org
-	var b, c, d, e Role
-
-	seed := randomize.NewSeed()
-	if err = randomize.Struct(seed, &a, orgDBTypes, false, strmangle.SetComplement(orgPrimaryKeyColumns, orgColumnsWithoutDefault)...); err != nil {
-		t.Fatal(err)
-	}
-	foreigners := []*Role{&b, &c, &d, &e}
-	for _, x := range foreigners {
-		if err = randomize.Struct(seed, x, roleDBTypes, false, strmangle.SetComplement(rolePrimaryKeyColumns, roleColumnsWithoutDefault)...); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	if err = a.Insert(ctx, tx, boil.Infer()); err != nil {
-		t.Fatal(err)
-	}
-	if err = b.Insert(ctx, tx, boil.Infer()); err != nil {
-		t.Fatal(err)
-	}
-	if err = c.Insert(ctx, tx, boil.Infer()); err != nil {
-		t.Fatal(err)
-	}
-
-	err = a.SetRoles(ctx, tx, false, &b, &c)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	count, err := a.Roles().Count(ctx, tx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 2 {
-		t.Error("count was wrong:", count)
-	}
-
-	err = a.SetRoles(ctx, tx, true, &d, &e)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	count, err = a.Roles().Count(ctx, tx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 2 {
-		t.Error("count was wrong:", count)
-	}
-
-	if !queries.IsValuerNil(b.OrgID) {
-		t.Error("want b's foreign key value to be nil")
-	}
-	if !queries.IsValuerNil(c.OrgID) {
-		t.Error("want c's foreign key value to be nil")
-	}
-	if !queries.Equal(a.OrgID, d.OrgID) {
-		t.Error("foreign key was wrong value", a.OrgID, d.OrgID)
-	}
-	if !queries.Equal(a.OrgID, e.OrgID) {
-		t.Error("foreign key was wrong value", a.OrgID, e.OrgID)
-	}
-
-	if b.R.Org != nil {
-		t.Error("relationship was not removed properly from the foreign struct")
-	}
-	if c.R.Org != nil {
-		t.Error("relationship was not removed properly from the foreign struct")
-	}
-	if d.R.Org != &a {
-		t.Error("relationship was not added properly to the foreign struct")
-	}
-	if e.R.Org != &a {
-		t.Error("relationship was not added properly to the foreign struct")
-	}
-
-	if a.R.Roles[0] != &d {
-		t.Error("relationship struct slice not set to correct value")
-	}
-	if a.R.Roles[1] != &e {
-		t.Error("relationship struct slice not set to correct value")
-	}
-}
-
-func testOrgToManyRemoveOpRoles(t *testing.T) {
-	var err error
-
-	ctx := context.Background()
-	tx := MustTx(boil.BeginTx(ctx, nil))
-	defer func() { _ = tx.Rollback() }()
-
-	var a Org
-	var b, c, d, e Role
-
-	seed := randomize.NewSeed()
-	if err = randomize.Struct(seed, &a, orgDBTypes, false, strmangle.SetComplement(orgPrimaryKeyColumns, orgColumnsWithoutDefault)...); err != nil {
-		t.Fatal(err)
-	}
-	foreigners := []*Role{&b, &c, &d, &e}
-	for _, x := range foreigners {
-		if err = randomize.Struct(seed, x, roleDBTypes, false, strmangle.SetComplement(rolePrimaryKeyColumns, roleColumnsWithoutDefault)...); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	if err := a.Insert(ctx, tx, boil.Infer()); err != nil {
-		t.Fatal(err)
-	}
-
-	err = a.AddRoles(ctx, tx, true, foreigners...)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	count, err := a.Roles().Count(ctx, tx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 4 {
-		t.Error("count was wrong:", count)
-	}
-
-	err = a.RemoveRoles(ctx, tx, foreigners[:2]...)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	count, err = a.Roles().Count(ctx, tx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 2 {
-		t.Error("count was wrong:", count)
-	}
-
-	if !queries.IsValuerNil(b.OrgID) {
-		t.Error("want b's foreign key value to be nil")
-	}
-	if !queries.IsValuerNil(c.OrgID) {
-		t.Error("want c's foreign key value to be nil")
-	}
-
-	if b.R.Org != nil {
-		t.Error("relationship was not removed properly from the foreign struct")
-	}
-	if c.R.Org != nil {
-		t.Error("relationship was not removed properly from the foreign struct")
-	}
-	if d.R.Org != &a {
-		t.Error("relationship to a should have been preserved")
-	}
-	if e.R.Org != &a {
-		t.Error("relationship to a should have been preserved")
-	}
-
-	if len(a.R.Roles) != 2 {
-		t.Error("should have preserved two relationships")
-	}
-
-	// Removal doesn't do a stable deletion for performance so we have to flip the order
-	if a.R.Roles[1] != &d {
-		t.Error("relationship to d should have been preserved")
-	}
-	if a.R.Roles[0] != &e {
-		t.Error("relationship to e should have been preserved")
-	}
-}
-
 func testOrgToManyAddOpUsers(t *testing.T) {
 	var err error
 
@@ -1022,10 +848,10 @@ func testOrgToManyAddOpUsers(t *testing.T) {
 		first := x[0]
 		second := x[1]
 
-		if !queries.Equal(a.OrgID, first.OrgID) {
+		if a.OrgID != first.OrgID {
 			t.Error("foreign key was wrong value", a.OrgID, first.OrgID)
 		}
-		if !queries.Equal(a.OrgID, second.OrgID) {
+		if a.OrgID != second.OrgID {
 			t.Error("foreign key was wrong value", a.OrgID, second.OrgID)
 		}
 
@@ -1052,182 +878,6 @@ func testOrgToManyAddOpUsers(t *testing.T) {
 		}
 	}
 }
-
-func testOrgToManySetOpUsers(t *testing.T) {
-	var err error
-
-	ctx := context.Background()
-	tx := MustTx(boil.BeginTx(ctx, nil))
-	defer func() { _ = tx.Rollback() }()
-
-	var a Org
-	var b, c, d, e User
-
-	seed := randomize.NewSeed()
-	if err = randomize.Struct(seed, &a, orgDBTypes, false, strmangle.SetComplement(orgPrimaryKeyColumns, orgColumnsWithoutDefault)...); err != nil {
-		t.Fatal(err)
-	}
-	foreigners := []*User{&b, &c, &d, &e}
-	for _, x := range foreigners {
-		if err = randomize.Struct(seed, x, userDBTypes, false, strmangle.SetComplement(userPrimaryKeyColumns, userColumnsWithoutDefault)...); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	if err = a.Insert(ctx, tx, boil.Infer()); err != nil {
-		t.Fatal(err)
-	}
-	if err = b.Insert(ctx, tx, boil.Infer()); err != nil {
-		t.Fatal(err)
-	}
-	if err = c.Insert(ctx, tx, boil.Infer()); err != nil {
-		t.Fatal(err)
-	}
-
-	err = a.SetUsers(ctx, tx, false, &b, &c)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	count, err := a.Users().Count(ctx, tx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 2 {
-		t.Error("count was wrong:", count)
-	}
-
-	err = a.SetUsers(ctx, tx, true, &d, &e)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	count, err = a.Users().Count(ctx, tx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 2 {
-		t.Error("count was wrong:", count)
-	}
-
-	if !queries.IsValuerNil(b.OrgID) {
-		t.Error("want b's foreign key value to be nil")
-	}
-	if !queries.IsValuerNil(c.OrgID) {
-		t.Error("want c's foreign key value to be nil")
-	}
-	if !queries.Equal(a.OrgID, d.OrgID) {
-		t.Error("foreign key was wrong value", a.OrgID, d.OrgID)
-	}
-	if !queries.Equal(a.OrgID, e.OrgID) {
-		t.Error("foreign key was wrong value", a.OrgID, e.OrgID)
-	}
-
-	if b.R.Org != nil {
-		t.Error("relationship was not removed properly from the foreign struct")
-	}
-	if c.R.Org != nil {
-		t.Error("relationship was not removed properly from the foreign struct")
-	}
-	if d.R.Org != &a {
-		t.Error("relationship was not added properly to the foreign struct")
-	}
-	if e.R.Org != &a {
-		t.Error("relationship was not added properly to the foreign struct")
-	}
-
-	if a.R.Users[0] != &d {
-		t.Error("relationship struct slice not set to correct value")
-	}
-	if a.R.Users[1] != &e {
-		t.Error("relationship struct slice not set to correct value")
-	}
-}
-
-func testOrgToManyRemoveOpUsers(t *testing.T) {
-	var err error
-
-	ctx := context.Background()
-	tx := MustTx(boil.BeginTx(ctx, nil))
-	defer func() { _ = tx.Rollback() }()
-
-	var a Org
-	var b, c, d, e User
-
-	seed := randomize.NewSeed()
-	if err = randomize.Struct(seed, &a, orgDBTypes, false, strmangle.SetComplement(orgPrimaryKeyColumns, orgColumnsWithoutDefault)...); err != nil {
-		t.Fatal(err)
-	}
-	foreigners := []*User{&b, &c, &d, &e}
-	for _, x := range foreigners {
-		if err = randomize.Struct(seed, x, userDBTypes, false, strmangle.SetComplement(userPrimaryKeyColumns, userColumnsWithoutDefault)...); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	if err := a.Insert(ctx, tx, boil.Infer()); err != nil {
-		t.Fatal(err)
-	}
-
-	err = a.AddUsers(ctx, tx, true, foreigners...)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	count, err := a.Users().Count(ctx, tx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 4 {
-		t.Error("count was wrong:", count)
-	}
-
-	err = a.RemoveUsers(ctx, tx, foreigners[:2]...)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	count, err = a.Users().Count(ctx, tx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 2 {
-		t.Error("count was wrong:", count)
-	}
-
-	if !queries.IsValuerNil(b.OrgID) {
-		t.Error("want b's foreign key value to be nil")
-	}
-	if !queries.IsValuerNil(c.OrgID) {
-		t.Error("want c's foreign key value to be nil")
-	}
-
-	if b.R.Org != nil {
-		t.Error("relationship was not removed properly from the foreign struct")
-	}
-	if c.R.Org != nil {
-		t.Error("relationship was not removed properly from the foreign struct")
-	}
-	if d.R.Org != &a {
-		t.Error("relationship to a should have been preserved")
-	}
-	if e.R.Org != &a {
-		t.Error("relationship to a should have been preserved")
-	}
-
-	if len(a.R.Users) != 2 {
-		t.Error("should have preserved two relationships")
-	}
-
-	// Removal doesn't do a stable deletion for performance so we have to flip the order
-	if a.R.Users[1] != &d {
-		t.Error("relationship to d should have been preserved")
-	}
-	if a.R.Users[0] != &e {
-		t.Error("relationship to e should have been preserved")
-	}
-}
-
 func testOrgToManyAddOpZones(t *testing.T) {
 	var err error
 
