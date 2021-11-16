@@ -1,11 +1,7 @@
-package main
+package roles
 
 import (
-	"github.com/mburtless/oso-rbac-iam/datastore"
-	"github.com/mburtless/oso-rbac-iam/models"
 	"github.com/stretchr/testify/assert"
-	"github.com/volatiletech/sqlboiler/v4/types"
-	"reflect"
 	"testing"
 )
 
@@ -101,102 +97,5 @@ func TestPolicyResourceName_GetType(t *testing.T) {
 			assert.ErrorIs(t, tt.expErr, err)
 		}
 		assert.Equal(t, tt.expType, gotType)
-	}
-}
-
-func Test_toDerivedRoleMap(t *testing.T) {
-	orgId := 1
-	tests := []struct {
-		name string
-		denormRoles []*datastore.DenormalizedRole
-		want map[int]*DerivedRole
-	}{
-		{
-			name: "empty roles",
-			denormRoles: []*datastore.DenormalizedRole{},
-			want: map[int]*DerivedRole{},
-		},
-		{
-			name: "role with one policy",
-			denormRoles: []*datastore.DenormalizedRole{
-				{
-					Role: models.Role{RoleID: 1, Name: "guybrush", OrgID: orgId},
-					Policy: models.Policy{
-						PolicyID: 1,
-						Name: "bar",
-						Effect: "allow",
-						Actions: types.StringArray{"view"},
-						ResourceName: "foo",
-						Conditions: types.StringArray{},
-					},
-				},
-			},
-			want: map[int]*DerivedRole{
-				1: {
-					Role: models.Role{RoleID: 1, Name: "guybrush", OrgID: orgId},
-					Policies: []*RolePolicy{
-						{
-							Effect: "allow",
-							Actions: []string{"view"},
-							Resource: PolicyResourceName("foo"),
-							Conditions: types.StringArray{},
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "role with multiple policies",
-			denormRoles: []*datastore.DenormalizedRole{
-				{
-					Role: models.Role{RoleID: 1, Name: "guybrush", OrgID: orgId},
-					Policy: models.Policy{
-						PolicyID: 1,
-						Name: "bar",
-						Effect: "allow",
-						Actions: types.StringArray{"view"},
-						ResourceName: "foo",
-						Conditions: types.StringArray{},
-					},
-				},
-				{
-					Role: models.Role{RoleID: 1, Name: "guybrush", OrgID: orgId},
-					Policy: models.Policy{
-						PolicyID: 2,
-						Name: "baz",
-						Effect: "allow",
-						Actions: types.StringArray{"delete"},
-						ResourceName: "foo",
-						Conditions: types.StringArray{},
-					},
-				},
-			},
-			want: map[int]*DerivedRole{
-				1: {
-					Role: models.Role{RoleID: 1, Name: "guybrush", OrgID: orgId},
-					Policies: []*RolePolicy{
-						{
-							Effect: "allow",
-							Actions: []string{"view"},
-							Resource: PolicyResourceName("foo"),
-							Conditions: types.StringArray{},
-						},
-						{
-							Effect: "allow",
-							Actions: []string{"delete"},
-							Resource: PolicyResourceName("foo"),
-							Conditions: types.StringArray{},
-						},
-					},
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := toDerivedRoleMap(tt.denormRoles); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("toDerivedRoleSlice() = %v, want %v", got, tt.want)
-			}
-		})
 	}
 }

@@ -9,6 +9,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/mburtless/oso-rbac-iam/datastore"
 	"github.com/mburtless/oso-rbac-iam/models"
+	"github.com/mburtless/oso-rbac-iam/pkg/roles"
 	"github.com/osohq/go-oso"
 	"go.uber.org/zap"
 	"log"
@@ -85,15 +86,15 @@ func initOso() error {
 	osoClient.RegisterClass(reflect.TypeOf(Role{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(RolePolicy{}), nil)
 	*/
-	if err := osoClient.RegisterClass(reflect.TypeOf(PolicyResourceName("foo")), nil); err != nil {
+	if err := osoClient.RegisterClass(reflect.TypeOf(roles.PolicyResourceName("foo")), nil); err != nil {
 		return err
 	}
 	osoClient.RegisterClass(reflect.TypeOf(models.Zone{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(models.User{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(models.Role{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(models.Policy{}), nil)
-	osoClient.RegisterClass(reflect.TypeOf(RolePolicy{}), nil)
-	osoClient.RegisterClass(reflect.TypeOf(DerivedRole{}), nil)
+	osoClient.RegisterClass(reflect.TypeOf(roles.RolePolicy{}), nil)
+	osoClient.RegisterClass(reflect.TypeOf(datastore.DerivedRole{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(DerivedUser{}), nil)
 
 	if err := osoClient.LoadFiles([]string{"iam.polar"}); err != nil {

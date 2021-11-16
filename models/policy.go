@@ -29,7 +29,6 @@ type Policy struct {
 	Effect       string            `boil:"effect" json:"effect" toml:"effect" yaml:"effect"`
 	Actions      types.StringArray `boil:"actions" json:"actions,omitempty" toml:"actions" yaml:"actions,omitempty"`
 	ResourceName string            `boil:"resource_name" json:"resource_name" toml:"resource_name" yaml:"resource_name"`
-	Conditions   types.StringArray `boil:"conditions" json:"conditions,omitempty" toml:"conditions" yaml:"conditions,omitempty"`
 
 	R *policyR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L policyL  `boil:"-" json:"-" toml:"-" yaml:"-"`
@@ -41,14 +40,12 @@ var PolicyColumns = struct {
 	Effect       string
 	Actions      string
 	ResourceName string
-	Conditions   string
 }{
 	PolicyID:     "policy_id",
 	Name:         "name",
 	Effect:       "effect",
 	Actions:      "actions",
 	ResourceName: "resource_name",
-	Conditions:   "conditions",
 }
 
 var PolicyTableColumns = struct {
@@ -57,14 +54,12 @@ var PolicyTableColumns = struct {
 	Effect       string
 	Actions      string
 	ResourceName string
-	Conditions   string
 }{
 	PolicyID:     "policy.policy_id",
 	Name:         "policy.name",
 	Effect:       "policy.effect",
 	Actions:      "policy.actions",
 	ResourceName: "policy.resource_name",
-	Conditions:   "policy.conditions",
 }
 
 // Generated where
@@ -101,26 +96,27 @@ var PolicyWhere = struct {
 	Effect       whereHelperstring
 	Actions      whereHelpertypes_StringArray
 	ResourceName whereHelperstring
-	Conditions   whereHelpertypes_StringArray
 }{
 	PolicyID:     whereHelperint{field: "\"policy\".\"policy_id\""},
 	Name:         whereHelperstring{field: "\"policy\".\"name\""},
 	Effect:       whereHelperstring{field: "\"policy\".\"effect\""},
 	Actions:      whereHelpertypes_StringArray{field: "\"policy\".\"actions\""},
 	ResourceName: whereHelperstring{field: "\"policy\".\"resource_name\""},
-	Conditions:   whereHelpertypes_StringArray{field: "\"policy\".\"conditions\""},
 }
 
 // PolicyRels is where relationship names are stored.
 var PolicyRels = struct {
-	Roles string
+	Conditions string
+	Roles      string
 }{
-	Roles: "Roles",
+	Conditions: "Conditions",
+	Roles:      "Roles",
 }
 
 // policyR is where relationships are stored.
 type policyR struct {
-	Roles RoleSlice `boil:"Roles" json:"Roles" toml:"Roles" yaml:"Roles"`
+	Conditions ConditionSlice `boil:"Conditions" json:"Conditions" toml:"Conditions" yaml:"Conditions"`
+	Roles      RoleSlice      `boil:"Roles" json:"Roles" toml:"Roles" yaml:"Roles"`
 }
 
 // NewStruct creates a new relationship struct
@@ -132,8 +128,8 @@ func (*policyR) NewStruct() *policyR {
 type policyL struct{}
 
 var (
-	policyAllColumns            = []string{"policy_id", "name", "effect", "actions", "resource_name", "conditions"}
-	policyColumnsWithoutDefault = []string{"name", "effect", "actions", "resource_name", "conditions"}
+	policyAllColumns            = []string{"policy_id", "name", "effect", "actions", "resource_name"}
+	policyColumnsWithoutDefault = []string{"name", "effect", "actions", "resource_name"}
 	policyColumnsWithDefault    = []string{"policy_id"}
 	policyPrimaryKeyColumns     = []string{"policy_id"}
 )
@@ -413,6 +409,28 @@ func (q policyQuery) Exists(ctx context.Context, exec boil.ContextExecutor) (boo
 	return count > 0, nil
 }
 
+// Conditions retrieves all the condition's Conditions with an executor.
+func (o *Policy) Conditions(mods ...qm.QueryMod) conditionQuery {
+	var queryMods []qm.QueryMod
+	if len(mods) != 0 {
+		queryMods = append(queryMods, mods...)
+	}
+
+	queryMods = append(queryMods,
+		qm.InnerJoin("\"condition_policies\" on \"condition\".\"condition_id\" = \"condition_policies\".\"condition_id\""),
+		qm.Where("\"condition_policies\".\"policy_id\"=?", o.PolicyID),
+	)
+
+	query := Conditions(queryMods...)
+	queries.SetFrom(query.Query, "\"condition\"")
+
+	if len(queries.GetSelect(query.Query)) == 0 {
+		queries.SetSelect(query.Query, []string{"\"condition\".*"})
+	}
+
+	return query
+}
+
 // Roles retrieves all the role's Roles with an executor.
 func (o *Policy) Roles(mods ...qm.QueryMod) roleQuery {
 	var queryMods []qm.QueryMod
@@ -433,6 +451,121 @@ func (o *Policy) Roles(mods ...qm.QueryMod) roleQuery {
 	}
 
 	return query
+}
+
+// LoadConditions allows an eager lookup of values, cached into the
+// loaded structs of the objects. This is for a 1-M or N-M relationship.
+func (policyL) LoadConditions(ctx context.Context, e boil.ContextExecutor, singular bool, maybePolicy interface{}, mods queries.Applicator) error {
+	var slice []*Policy
+	var object *Policy
+
+	if singular {
+		object = maybePolicy.(*Policy)
+	} else {
+		slice = *maybePolicy.(*[]*Policy)
+	}
+
+	args := make([]interface{}, 0, 1)
+	if singular {
+		if object.R == nil {
+			object.R = &policyR{}
+		}
+		args = append(args, object.PolicyID)
+	} else {
+	Outer:
+		for _, obj := range slice {
+			if obj.R == nil {
+				obj.R = &policyR{}
+			}
+
+			for _, a := range args {
+				if a == obj.PolicyID {
+					continue Outer
+				}
+			}
+
+			args = append(args, obj.PolicyID)
+		}
+	}
+
+	if len(args) == 0 {
+		return nil
+	}
+
+	query := NewQuery(
+		qm.Select("\"condition\".condition_id, \"condition\".type, \"condition\".value, \"a\".\"policy_id\""),
+		qm.From("\"condition\""),
+		qm.InnerJoin("\"condition_policies\" as \"a\" on \"condition\".\"condition_id\" = \"a\".\"condition_id\""),
+		qm.WhereIn("\"a\".\"policy_id\" in ?", args...),
+	)
+	if mods != nil {
+		mods.Apply(query)
+	}
+
+	results, err := query.QueryContext(ctx, e)
+	if err != nil {
+		return errors.Wrap(err, "failed to eager load condition")
+	}
+
+	var resultSlice []*Condition
+
+	var localJoinCols []int
+	for results.Next() {
+		one := new(Condition)
+		var localJoinCol int
+
+		err = results.Scan(&one.ConditionID, &one.Type, &one.Value, &localJoinCol)
+		if err != nil {
+			return errors.Wrap(err, "failed to scan eager loaded results for condition")
+		}
+		if err = results.Err(); err != nil {
+			return errors.Wrap(err, "failed to plebian-bind eager loaded slice condition")
+		}
+
+		resultSlice = append(resultSlice, one)
+		localJoinCols = append(localJoinCols, localJoinCol)
+	}
+
+	if err = results.Close(); err != nil {
+		return errors.Wrap(err, "failed to close results in eager load on condition")
+	}
+	if err = results.Err(); err != nil {
+		return errors.Wrap(err, "error occurred during iteration of eager loaded relations for condition")
+	}
+
+	if len(conditionAfterSelectHooks) != 0 {
+		for _, obj := range resultSlice {
+			if err := obj.doAfterSelectHooks(ctx, e); err != nil {
+				return err
+			}
+		}
+	}
+	if singular {
+		object.R.Conditions = resultSlice
+		for _, foreign := range resultSlice {
+			if foreign.R == nil {
+				foreign.R = &conditionR{}
+			}
+			foreign.R.Policies = append(foreign.R.Policies, object)
+		}
+		return nil
+	}
+
+	for i, foreign := range resultSlice {
+		localJoinCol := localJoinCols[i]
+		for _, local := range slice {
+			if local.PolicyID == localJoinCol {
+				local.R.Conditions = append(local.R.Conditions, foreign)
+				if foreign.R == nil {
+					foreign.R = &conditionR{}
+				}
+				foreign.R.Policies = append(foreign.R.Policies, local)
+				break
+			}
+		}
+	}
+
+	return nil
 }
 
 // LoadRoles allows an eager lookup of values, cached into the
@@ -548,6 +681,150 @@ func (policyL) LoadRoles(ctx context.Context, e boil.ContextExecutor, singular b
 	}
 
 	return nil
+}
+
+// AddConditions adds the given related objects to the existing relationships
+// of the policy, optionally inserting them as new records.
+// Appends related to o.R.Conditions.
+// Sets related.R.Policies appropriately.
+func (o *Policy) AddConditions(ctx context.Context, exec boil.ContextExecutor, insert bool, related ...*Condition) error {
+	var err error
+	for _, rel := range related {
+		if insert {
+			if err = rel.Insert(ctx, exec, boil.Infer()); err != nil {
+				return errors.Wrap(err, "failed to insert into foreign table")
+			}
+		}
+	}
+
+	for _, rel := range related {
+		query := "insert into \"condition_policies\" (\"policy_id\", \"condition_id\") values ($1, $2)"
+		values := []interface{}{o.PolicyID, rel.ConditionID}
+
+		if boil.IsDebug(ctx) {
+			writer := boil.DebugWriterFrom(ctx)
+			fmt.Fprintln(writer, query)
+			fmt.Fprintln(writer, values)
+		}
+		_, err = exec.ExecContext(ctx, query, values...)
+		if err != nil {
+			return errors.Wrap(err, "failed to insert into join table")
+		}
+	}
+	if o.R == nil {
+		o.R = &policyR{
+			Conditions: related,
+		}
+	} else {
+		o.R.Conditions = append(o.R.Conditions, related...)
+	}
+
+	for _, rel := range related {
+		if rel.R == nil {
+			rel.R = &conditionR{
+				Policies: PolicySlice{o},
+			}
+		} else {
+			rel.R.Policies = append(rel.R.Policies, o)
+		}
+	}
+	return nil
+}
+
+// SetConditions removes all previously related items of the
+// policy replacing them completely with the passed
+// in related items, optionally inserting them as new records.
+// Sets o.R.Policies's Conditions accordingly.
+// Replaces o.R.Conditions with related.
+// Sets related.R.Policies's Conditions accordingly.
+func (o *Policy) SetConditions(ctx context.Context, exec boil.ContextExecutor, insert bool, related ...*Condition) error {
+	query := "delete from \"condition_policies\" where \"policy_id\" = $1"
+	values := []interface{}{o.PolicyID}
+	if boil.IsDebug(ctx) {
+		writer := boil.DebugWriterFrom(ctx)
+		fmt.Fprintln(writer, query)
+		fmt.Fprintln(writer, values)
+	}
+	_, err := exec.ExecContext(ctx, query, values...)
+	if err != nil {
+		return errors.Wrap(err, "failed to remove relationships before set")
+	}
+
+	removeConditionsFromPoliciesSlice(o, related)
+	if o.R != nil {
+		o.R.Conditions = nil
+	}
+	return o.AddConditions(ctx, exec, insert, related...)
+}
+
+// RemoveConditions relationships from objects passed in.
+// Removes related items from R.Conditions (uses pointer comparison, removal does not keep order)
+// Sets related.R.Policies.
+func (o *Policy) RemoveConditions(ctx context.Context, exec boil.ContextExecutor, related ...*Condition) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	query := fmt.Sprintf(
+		"delete from \"condition_policies\" where \"policy_id\" = $1 and \"condition_id\" in (%s)",
+		strmangle.Placeholders(dialect.UseIndexPlaceholders, len(related), 2, 1),
+	)
+	values := []interface{}{o.PolicyID}
+	for _, rel := range related {
+		values = append(values, rel.ConditionID)
+	}
+
+	if boil.IsDebug(ctx) {
+		writer := boil.DebugWriterFrom(ctx)
+		fmt.Fprintln(writer, query)
+		fmt.Fprintln(writer, values)
+	}
+	_, err = exec.ExecContext(ctx, query, values...)
+	if err != nil {
+		return errors.Wrap(err, "failed to remove relationships before set")
+	}
+	removeConditionsFromPoliciesSlice(o, related)
+	if o.R == nil {
+		return nil
+	}
+
+	for _, rel := range related {
+		for i, ri := range o.R.Conditions {
+			if rel != ri {
+				continue
+			}
+
+			ln := len(o.R.Conditions)
+			if ln > 1 && i < ln-1 {
+				o.R.Conditions[i] = o.R.Conditions[ln-1]
+			}
+			o.R.Conditions = o.R.Conditions[:ln-1]
+			break
+		}
+	}
+
+	return nil
+}
+
+func removeConditionsFromPoliciesSlice(o *Policy, related []*Condition) {
+	for _, rel := range related {
+		if rel.R == nil {
+			continue
+		}
+		for i, ri := range rel.R.Policies {
+			if o.PolicyID != ri.PolicyID {
+				continue
+			}
+
+			ln := len(rel.R.Policies)
+			if ln > 1 && i < ln-1 {
+				rel.R.Policies[i] = rel.R.Policies[ln-1]
+			}
+			rel.R.Policies = rel.R.Policies[:ln-1]
+			break
+		}
+	}
 }
 
 // AddRoles adds the given related objects to the existing relationships

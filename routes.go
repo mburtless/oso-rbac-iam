@@ -7,6 +7,7 @@ import (
 	"github.com/mburtless/oso-rbac-iam/datastore"
 	"github.com/mburtless/oso-rbac-iam/models"
 	"strconv"
+	"strings"
 )
 
 var (
@@ -68,14 +69,12 @@ func listZonesRoute(c *fiber.Ctx, ds datastore.Datastore) error {
 		logger.Errorw("error listing zones for org", "orgID", reqUser.User.OrgID, "error", err)
 		return c.Status(404).SendString(errHTMLZonesNotFound)
 	}
-	zoneNames := ""
-	for i, z := range *zs {
-		zoneNames += z.Name
-		if i < len(*zs) - 1 {
-			zoneNames += ","
-		}
+
+	var zoneNames []string
+	for _, z := range *zs {
+		zoneNames = append(zoneNames, z.Name)
 	}
-	return c.Status(200).SendString(fmt.Sprintf("<h1>A Repo</h1><p>%s</p>", zoneNames))
+	return c.Status(200).SendString(fmt.Sprintf("<h1>A Repo</h1><p>%s</p>", strings.Join(zoneNames, ",")))
 }
 
 // gets the zone requested in zoneId param
@@ -101,3 +100,4 @@ func authorizeZoneRoute(u *DerivedUser, action string, z *models.Zone) error {
 
 	return nil
 }
+

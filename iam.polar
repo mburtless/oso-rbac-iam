@@ -8,13 +8,14 @@ allow(user: DerivedUser, action: String, resource) if
 
 some_allow(user: DerivedUser, action: String, resource) if
     [_, role] in user.Roles and
-    policy in role.Policies and
+    # TODO: switch policies to map
+    [_, policy] in role.Policies and
     policy.Effect = "allow" and
     check_policy(policy, action, resource);
 
 no_deny(user: DerivedUser, action: String, resource) if
     [_, role] in user.Roles and
-    forall(policy in role.Policies,
+    forall([_, policy] in role.Policies,
         not policy.Effect = "deny" or
         not check_policy(policy, action, resource)
     );

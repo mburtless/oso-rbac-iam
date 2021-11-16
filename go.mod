@@ -8,6 +8,7 @@ require (
 	github.com/gofiber/fiber/v2 v2.19.0
 	github.com/kat-co/vala v0.0.0-20170210184112-42e1d8b61f12
 	github.com/lib/pq v1.10.3
+	github.com/lucasepe/codename v0.2.0
 	github.com/osohq/go-oso v0.20.1
 	github.com/spf13/viper v1.9.0
 	github.com/stretchr/testify v1.7.0

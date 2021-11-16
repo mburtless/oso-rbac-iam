@@ -1,11 +1,8 @@
-package main
+package roles
 
 import (
 	"fmt"
 	"github.com/gobwas/glob"
-	"github.com/mburtless/oso-rbac-iam/datastore"
-	"github.com/mburtless/oso-rbac-iam/models"
-	"github.com/volatiletech/sqlboiler/v4/types"
 	"strings"
 )
 
@@ -13,48 +10,22 @@ var (
 	errBadResourceID   = fmt.Errorf("improperly formatted resource ID")
 	errBadResourceName = fmt.Errorf("improperly formated resource name")
 )
-// converts a slice of denormalized roles into a map of derived roles
-func toDerivedRoleMap(denormRoles []*datastore.DenormalizedRole) map[int]*DerivedRole {
-	derivedRoles := map[int]*DerivedRole{}
-	if len(denormRoles) == 0 {
-		return derivedRoles
-	}
-	for _, denormRole := range denormRoles {
-		// check if derived role already exists at index
-		if _, ok := derivedRoles[denormRole.Role.RoleID]; !ok {
-			// if not, populate it with current role
-			derivedRoles[denormRole.Role.RoleID] = &DerivedRole{
-				Role: denormRole.Role,
-				Policies: []*RolePolicy{},
-			}
-		}
-		// append policy
-		derivedRoles[denormRole.Role.RoleID].Policies = append(derivedRoles[denormRole.Role.RoleID].Policies, toPolicy(&denormRole.Policy))
-	}
-	return derivedRoles
-}
 
-// DerivedRole is the combination of a role and all of it's policies
-type DerivedRole struct {
-	models.Role
-	Policies []*RolePolicy
-}
+
 
 // RolePolicy resource
 type RolePolicy struct {
+	ID int
 	Effect     string
 	Actions    []string
 	Resource   PolicyResourceName
-	Conditions types.StringArray
+	Conditions []Condition
 }
 
-func toPolicy(policy *models.Policy) *RolePolicy {
-	return &RolePolicy{
-		Effect: policy.Effect,
-		Actions: policy.Actions,
-		Resource: PolicyResourceName(policy.ResourceName),
-		Conditions: policy.Conditions,
-	}
+func (rp RolePolicy) String() string {
+	return fmt.Sprintf("ID: %d Effect: %s Actions: %v Resource: %v Conditions: %v",
+		rp.ID, rp.Effect, rp.Actions, rp.Resource, rp.Conditions,
+	)
 }
 
 // Condition modifier for policies

@@ -494,6 +494,90 @@ func testPoliciesInsertWhitelist(t *testing.T) {
 	}
 }
 
+func testPolicyToManyConditions(t *testing.T) {
+	var err error
+	ctx := context.Background()
+	tx := MustTx(boil.BeginTx(ctx, nil))
+	defer func() { _ = tx.Rollback() }()
+
+	var a Policy
+	var b, c Condition
+
+	seed := randomize.NewSeed()
+	if err = randomize.Struct(seed, &a, policyDBTypes, true, policyColumnsWithDefault...); err != nil {
+		t.Errorf("Unable to randomize Policy struct: %s", err)
+	}
+
+	if err := a.Insert(ctx, tx, boil.Infer()); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = randomize.Struct(seed, &b, conditionDBTypes, false, conditionColumnsWithDefault...); err != nil {
+		t.Fatal(err)
+	}
+	if err = randomize.Struct(seed, &c, conditionDBTypes, false, conditionColumnsWithDefault...); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = b.Insert(ctx, tx, boil.Infer()); err != nil {
+		t.Fatal(err)
+	}
+	if err = c.Insert(ctx, tx, boil.Infer()); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = tx.Exec("insert into \"condition_policies\" (\"policy_id\", \"condition_id\") values ($1, $2)", a.PolicyID, b.ConditionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tx.Exec("insert into \"condition_policies\" (\"policy_id\", \"condition_id\") values ($1, $2)", a.PolicyID, c.ConditionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	check, err := a.Conditions().All(ctx, tx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bFound, cFound := false, false
+	for _, v := range check {
+		if v.ConditionID == b.ConditionID {
+			bFound = true
+		}
+		if v.ConditionID == c.ConditionID {
+			cFound = true
+		}
+	}
+
+	if !bFound {
+		t.Error("expected to find b")
+	}
+	if !cFound {
+		t.Error("expected to find c")
+	}
+
+	slice := PolicySlice{&a}
+	if err = a.L.LoadConditions(ctx, tx, false, (*[]*Policy)(&slice), nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(a.R.Conditions); got != 2 {
+		t.Error("number of eager loaded records wrong, got:", got)
+	}
+
+	a.R.Conditions = nil
+	if err = a.L.LoadConditions(ctx, tx, true, &a, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(a.R.Conditions); got != 2 {
+		t.Error("number of eager loaded records wrong, got:", got)
+	}
+
+	if t.Failed() {
+		t.Logf("%#v", check)
+	}
+}
+
 func testPolicyToManyRoles(t *testing.T) {
 	var err error
 	ctx := context.Background()
@@ -575,6 +659,234 @@ func testPolicyToManyRoles(t *testing.T) {
 
 	if t.Failed() {
 		t.Logf("%#v", check)
+	}
+}
+
+func testPolicyToManyAddOpConditions(t *testing.T) {
+	var err error
+
+	ctx := context.Background()
+	tx := MustTx(boil.BeginTx(ctx, nil))
+	defer func() { _ = tx.Rollback() }()
+
+	var a Policy
+	var b, c, d, e Condition
+
+	seed := randomize.NewSeed()
+	if err = randomize.Struct(seed, &a, policyDBTypes, false, strmangle.SetComplement(policyPrimaryKeyColumns, policyColumnsWithoutDefault)...); err != nil {
+		t.Fatal(err)
+	}
+	foreigners := []*Condition{&b, &c, &d, &e}
+	for _, x := range foreigners {
+		if err = randomize.Struct(seed, x, conditionDBTypes, false, strmangle.SetComplement(conditionPrimaryKeyColumns, conditionColumnsWithoutDefault)...); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := a.Insert(ctx, tx, boil.Infer()); err != nil {
+		t.Fatal(err)
+	}
+	if err = b.Insert(ctx, tx, boil.Infer()); err != nil {
+		t.Fatal(err)
+	}
+	if err = c.Insert(ctx, tx, boil.Infer()); err != nil {
+		t.Fatal(err)
+	}
+
+	foreignersSplitByInsertion := [][]*Condition{
+		{&b, &c},
+		{&d, &e},
+	}
+
+	for i, x := range foreignersSplitByInsertion {
+		err = a.AddConditions(ctx, tx, i != 0, x...)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		first := x[0]
+		second := x[1]
+
+		if first.R.Policies[0] != &a {
+			t.Error("relationship was not added properly to the slice")
+		}
+		if second.R.Policies[0] != &a {
+			t.Error("relationship was not added properly to the slice")
+		}
+
+		if a.R.Conditions[i*2] != first {
+			t.Error("relationship struct slice not set to correct value")
+		}
+		if a.R.Conditions[i*2+1] != second {
+			t.Error("relationship struct slice not set to correct value")
+		}
+
+		count, err := a.Conditions().Count(ctx, tx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := int64((i + 1) * 2); count != want {
+			t.Error("want", want, "got", count)
+		}
+	}
+}
+
+func testPolicyToManySetOpConditions(t *testing.T) {
+	var err error
+
+	ctx := context.Background()
+	tx := MustTx(boil.BeginTx(ctx, nil))
+	defer func() { _ = tx.Rollback() }()
+
+	var a Policy
+	var b, c, d, e Condition
+
+	seed := randomize.NewSeed()
+	if err = randomize.Struct(seed, &a, policyDBTypes, false, strmangle.SetComplement(policyPrimaryKeyColumns, policyColumnsWithoutDefault)...); err != nil {
+		t.Fatal(err)
+	}
+	foreigners := []*Condition{&b, &c, &d, &e}
+	for _, x := range foreigners {
+		if err = randomize.Struct(seed, x, conditionDBTypes, false, strmangle.SetComplement(conditionPrimaryKeyColumns, conditionColumnsWithoutDefault)...); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err = a.Insert(ctx, tx, boil.Infer()); err != nil {
+		t.Fatal(err)
+	}
+	if err = b.Insert(ctx, tx, boil.Infer()); err != nil {
+		t.Fatal(err)
+	}
+	if err = c.Insert(ctx, tx, boil.Infer()); err != nil {
+		t.Fatal(err)
+	}
+
+	err = a.SetConditions(ctx, tx, false, &b, &c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count, err := a.Conditions().Count(ctx, tx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 {
+		t.Error("count was wrong:", count)
+	}
+
+	err = a.SetConditions(ctx, tx, true, &d, &e)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count, err = a.Conditions().Count(ctx, tx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 {
+		t.Error("count was wrong:", count)
+	}
+
+	// The following checks cannot be implemented since we have no handle
+	// to these when we call Set(). Leaving them here as wishful thinking
+	// and to let people know there's dragons.
+	//
+	// if len(b.R.Policies) != 0 {
+	// 	t.Error("relationship was not removed properly from the slice")
+	// }
+	// if len(c.R.Policies) != 0 {
+	// 	t.Error("relationship was not removed properly from the slice")
+	// }
+	if d.R.Policies[0] != &a {
+		t.Error("relationship was not added properly to the slice")
+	}
+	if e.R.Policies[0] != &a {
+		t.Error("relationship was not added properly to the slice")
+	}
+
+	if a.R.Conditions[0] != &d {
+		t.Error("relationship struct slice not set to correct value")
+	}
+	if a.R.Conditions[1] != &e {
+		t.Error("relationship struct slice not set to correct value")
+	}
+}
+
+func testPolicyToManyRemoveOpConditions(t *testing.T) {
+	var err error
+
+	ctx := context.Background()
+	tx := MustTx(boil.BeginTx(ctx, nil))
+	defer func() { _ = tx.Rollback() }()
+
+	var a Policy
+	var b, c, d, e Condition
+
+	seed := randomize.NewSeed()
+	if err = randomize.Struct(seed, &a, policyDBTypes, false, strmangle.SetComplement(policyPrimaryKeyColumns, policyColumnsWithoutDefault)...); err != nil {
+		t.Fatal(err)
+	}
+	foreigners := []*Condition{&b, &c, &d, &e}
+	for _, x := range foreigners {
+		if err = randomize.Struct(seed, x, conditionDBTypes, false, strmangle.SetComplement(conditionPrimaryKeyColumns, conditionColumnsWithoutDefault)...); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := a.Insert(ctx, tx, boil.Infer()); err != nil {
+		t.Fatal(err)
+	}
+
+	err = a.AddConditions(ctx, tx, true, foreigners...)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count, err := a.Conditions().Count(ctx, tx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 4 {
+		t.Error("count was wrong:", count)
+	}
+
+	err = a.RemoveConditions(ctx, tx, foreigners[:2]...)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count, err = a.Conditions().Count(ctx, tx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 {
+		t.Error("count was wrong:", count)
+	}
+
+	if len(b.R.Policies) != 0 {
+		t.Error("relationship was not removed properly from the slice")
+	}
+	if len(c.R.Policies) != 0 {
+		t.Error("relationship was not removed properly from the slice")
+	}
+	if d.R.Policies[0] != &a {
+		t.Error("relationship was not added properly to the foreign struct")
+	}
+	if e.R.Policies[0] != &a {
+		t.Error("relationship was not added properly to the foreign struct")
+	}
+
+	if len(a.R.Conditions) != 2 {
+		t.Error("should have preserved two relationships")
+	}
+
+	// Removal doesn't do a stable deletion for performance so we have to flip the order
+	if a.R.Conditions[1] != &d {
+		t.Error("relationship to d should have been preserved")
+	}
+	if a.R.Conditions[0] != &e {
+		t.Error("relationship to e should have been preserved")
 	}
 }
 
@@ -880,7 +1192,7 @@ func testPoliciesSelect(t *testing.T) {
 }
 
 var (
-	policyDBTypes = map[string]string{`PolicyID`: `integer`, `Name`: `text`, `Effect`: `text`, `Actions`: `ARRAYtext`, `ResourceName`: `text`, `Conditions`: `ARRAYUSER-DEFINED`}
+	policyDBTypes = map[string]string{`PolicyID`: `integer`, `Name`: `text`, `Effect`: `text`, `Actions`: `ARRAYtext`, `ResourceName`: `text`}
 	_             = bytes.MinRead
 )
 

@@ -4,19 +4,23 @@
 package models
 
 var TableNames = struct {
-	Org          string
-	Policy       string
-	Role         string
-	RolePolicies string
-	User         string
-	UserRoles    string
-	Zone         string
+	Condition         string
+	ConditionPolicies string
+	Org               string
+	Policy            string
+	Role              string
+	RolePolicies      string
+	User              string
+	UserRoles         string
+	Zone              string
 }{
-	Org:          "org",
-	Policy:       "policy",
-	Role:         "role",
-	RolePolicies: "role_policies",
-	User:         "user",
-	UserRoles:    "user_roles",
-	Zone:         "zone",
+	Condition:         "condition",
+	ConditionPolicies: "condition_policies",
+	Org:               "org",
+	Policy:            "policy",
+	Role:              "role",
+	RolePolicies:      "role_policies",
+	User:              "user",
+	UserRoles:         "user_roles",
+	Zone:              "zone",
 }

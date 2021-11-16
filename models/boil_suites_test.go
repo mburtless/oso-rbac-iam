@@ -12,6 +12,7 @@ import "testing"
 // It does NOT run each operation group in parallel.
 // Separating the tests thusly grants avoidance of Postgres deadlocks.
 func TestParent(t *testing.T) {
+	t.Run("Conditions", testConditions)
 	t.Run("Orgs", testOrgs)
 	t.Run("Policies", testPolicies)
 	t.Run("Roles", testRoles)
@@ -20,6 +21,7 @@ func TestParent(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
+	t.Run("Conditions", testConditionsDelete)
 	t.Run("Orgs", testOrgsDelete)
 	t.Run("Policies", testPoliciesDelete)
 	t.Run("Roles", testRolesDelete)
@@ -28,6 +30,7 @@ func TestDelete(t *testing.T) {
 }
 
 func TestQueryDeleteAll(t *testing.T) {
+	t.Run("Conditions", testConditionsQueryDeleteAll)
 	t.Run("Orgs", testOrgsQueryDeleteAll)
 	t.Run("Policies", testPoliciesQueryDeleteAll)
 	t.Run("Roles", testRolesQueryDeleteAll)
@@ -36,6 +39,7 @@ func TestQueryDeleteAll(t *testing.T) {
 }
 
 func TestSliceDeleteAll(t *testing.T) {
+	t.Run("Conditions", testConditionsSliceDeleteAll)
 	t.Run("Orgs", testOrgsSliceDeleteAll)
 	t.Run("Policies", testPoliciesSliceDeleteAll)
 	t.Run("Roles", testRolesSliceDeleteAll)
@@ -44,6 +48,7 @@ func TestSliceDeleteAll(t *testing.T) {
 }
 
 func TestExists(t *testing.T) {
+	t.Run("Conditions", testConditionsExists)
 	t.Run("Orgs", testOrgsExists)
 	t.Run("Policies", testPoliciesExists)
 	t.Run("Roles", testRolesExists)
@@ -52,6 +57,7 @@ func TestExists(t *testing.T) {
 }
 
 func TestFind(t *testing.T) {
+	t.Run("Conditions", testConditionsFind)
 	t.Run("Orgs", testOrgsFind)
 	t.Run("Policies", testPoliciesFind)
 	t.Run("Roles", testRolesFind)
@@ -60,6 +66,7 @@ func TestFind(t *testing.T) {
 }
 
 func TestBind(t *testing.T) {
+	t.Run("Conditions", testConditionsBind)
 	t.Run("Orgs", testOrgsBind)
 	t.Run("Policies", testPoliciesBind)
 	t.Run("Roles", testRolesBind)
@@ -68,6 +75,7 @@ func TestBind(t *testing.T) {
 }
 
 func TestOne(t *testing.T) {
+	t.Run("Conditions", testConditionsOne)
 	t.Run("Orgs", testOrgsOne)
 	t.Run("Policies", testPoliciesOne)
 	t.Run("Roles", testRolesOne)
@@ -76,6 +84,7 @@ func TestOne(t *testing.T) {
 }
 
 func TestAll(t *testing.T) {
+	t.Run("Conditions", testConditionsAll)
 	t.Run("Orgs", testOrgsAll)
 	t.Run("Policies", testPoliciesAll)
 	t.Run("Roles", testRolesAll)
@@ -84,6 +93,7 @@ func TestAll(t *testing.T) {
 }
 
 func TestCount(t *testing.T) {
+	t.Run("Conditions", testConditionsCount)
 	t.Run("Orgs", testOrgsCount)
 	t.Run("Policies", testPoliciesCount)
 	t.Run("Roles", testRolesCount)
@@ -92,6 +102,7 @@ func TestCount(t *testing.T) {
 }
 
 func TestHooks(t *testing.T) {
+	t.Run("Conditions", testConditionsHooks)
 	t.Run("Orgs", testOrgsHooks)
 	t.Run("Policies", testPoliciesHooks)
 	t.Run("Roles", testRolesHooks)
@@ -100,6 +111,8 @@ func TestHooks(t *testing.T) {
 }
 
 func TestInsert(t *testing.T) {
+	t.Run("Conditions", testConditionsInsert)
+	t.Run("Conditions", testConditionsInsertWhitelist)
 	t.Run("Orgs", testOrgsInsert)
 	t.Run("Orgs", testOrgsInsertWhitelist)
 	t.Run("Policies", testPoliciesInsert)
@@ -127,9 +140,11 @@ func TestOneToOne(t *testing.T) {}
 // TestToMany tests cannot be run in parallel
 // or deadlocks can occur.
 func TestToMany(t *testing.T) {
+	t.Run("ConditionToPolicies", testConditionToManyPolicies)
 	t.Run("OrgToRoles", testOrgToManyRoles)
 	t.Run("OrgToUsers", testOrgToManyUsers)
 	t.Run("OrgToZones", testOrgToManyZones)
+	t.Run("PolicyToConditions", testPolicyToManyConditions)
 	t.Run("PolicyToRoles", testPolicyToManyRoles)
 	t.Run("RoleToPolicies", testRoleToManyPolicies)
 	t.Run("RoleToUsers", testRoleToManyUsers)
@@ -159,9 +174,11 @@ func TestOneToOneRemove(t *testing.T) {}
 // TestToManyAdd tests cannot be run in parallel
 // or deadlocks can occur.
 func TestToManyAdd(t *testing.T) {
+	t.Run("ConditionToPolicies", testConditionToManyAddOpPolicies)
 	t.Run("OrgToRoles", testOrgToManyAddOpRoles)
 	t.Run("OrgToUsers", testOrgToManyAddOpUsers)
 	t.Run("OrgToZones", testOrgToManyAddOpZones)
+	t.Run("PolicyToConditions", testPolicyToManyAddOpConditions)
 	t.Run("PolicyToRoles", testPolicyToManyAddOpRoles)
 	t.Run("RoleToPolicies", testRoleToManyAddOpPolicies)
 	t.Run("RoleToUsers", testRoleToManyAddOpUsers)
@@ -171,6 +188,8 @@ func TestToManyAdd(t *testing.T) {
 // TestToManySet tests cannot be run in parallel
 // or deadlocks can occur.
 func TestToManySet(t *testing.T) {
+	t.Run("ConditionToPolicies", testConditionToManySetOpPolicies)
+	t.Run("PolicyToConditions", testPolicyToManySetOpConditions)
 	t.Run("PolicyToRoles", testPolicyToManySetOpRoles)
 	t.Run("RoleToPolicies", testRoleToManySetOpPolicies)
 	t.Run("RoleToUsers", testRoleToManySetOpUsers)
@@ -180,6 +199,8 @@ func TestToManySet(t *testing.T) {
 // TestToManyRemove tests cannot be run in parallel
 // or deadlocks can occur.
 func TestToManyRemove(t *testing.T) {
+	t.Run("ConditionToPolicies", testConditionToManyRemoveOpPolicies)
+	t.Run("PolicyToConditions", testPolicyToManyRemoveOpConditions)
 	t.Run("PolicyToRoles", testPolicyToManyRemoveOpRoles)
 	t.Run("RoleToPolicies", testRoleToManyRemoveOpPolicies)
 	t.Run("RoleToUsers", testRoleToManyRemoveOpUsers)
@@ -187,6 +208,7 @@ func TestToManyRemove(t *testing.T) {
 }
 
 func TestReload(t *testing.T) {
+	t.Run("Conditions", testConditionsReload)
 	t.Run("Orgs", testOrgsReload)
 	t.Run("Policies", testPoliciesReload)
 	t.Run("Roles", testRolesReload)
@@ -195,6 +217,7 @@ func TestReload(t *testing.T) {
 }
 
 func TestReloadAll(t *testing.T) {
+	t.Run("Conditions", testConditionsReloadAll)
 	t.Run("Orgs", testOrgsReloadAll)
 	t.Run("Policies", testPoliciesReloadAll)
 	t.Run("Roles", testRolesReloadAll)
@@ -203,6 +226,7 @@ func TestReloadAll(t *testing.T) {
 }
 
 func TestSelect(t *testing.T) {
+	t.Run("Conditions", testConditionsSelect)
 	t.Run("Orgs", testOrgsSelect)
 	t.Run("Policies", testPoliciesSelect)
 	t.Run("Roles", testRolesSelect)
@@ -211,6 +235,7 @@ func TestSelect(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
+	t.Run("Conditions", testConditionsUpdate)
 	t.Run("Orgs", testOrgsUpdate)
 	t.Run("Policies", testPoliciesUpdate)
 	t.Run("Roles", testRolesUpdate)
@@ -219,6 +244,7 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestSliceUpdateAll(t *testing.T) {
+	t.Run("Conditions", testConditionsSliceUpdateAll)
 	t.Run("Orgs", testOrgsSliceUpdateAll)
 	t.Run("Policies", testPoliciesSliceUpdateAll)
 	t.Run("Roles", testRolesSliceUpdateAll)

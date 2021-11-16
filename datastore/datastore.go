@@ -3,19 +3,13 @@ package datastore
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"github.com/mburtless/oso-rbac-iam/models"
+	"github.com/mburtless/oso-rbac-iam/pkg/roles"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
 	"go.uber.org/zap"
 	"strings"
 )
-
-
-
-// DenormalizedRole is the combination of a role and one of it's policies
-type DenormalizedRole struct {
-	models.Role `boil:",bind"`
-	models.Policy `boil:",bind"`
-}
 
 type Datastore interface {
 	FindZoneByID(ctx context.Context, id int) (*models.Zone, error)
@@ -23,6 +17,7 @@ type Datastore interface {
 	FindUserByKey(ctx context.Context, key string) (*models.User, error)
 	GetUserRoles(ctx context.Context, user *models.User) (models.RoleSlice, error)
 	GetUserRolesAndPolicies(ctx context.Context, userID int) ([]*DenormalizedRole, error)
+	GetUserDerivedRoles(ctx context.Context, userID int) (map[int]*DerivedRole, error)
 }
 
 type datastore struct {
@@ -88,6 +83,16 @@ func (ds *datastore) GetUserRolesAndPolicies(ctx context.Context, userID int) ([
 	return dr, nil
 }
 
+func (ds *datastore) GetUserDerivedRoles(ctx context.Context, userID int) (map[int]*DerivedRole, error){
+	// load user's roles and policies
+	drs, err := ds.GetUserRolesAndPolicies(ctx, userID)
+	if err != nil {
+		ds.logger.Errorw("error finding derived roles for user", "error", err)
+		return nil, err
+	}
+	return ToDerivedRoleMap(drs), nil
+}
+
 // TODO: try to delete this by integrating matchers in a different way?
 func toZone(z *models.Zone) *Zone {
 	return &Zone{
@@ -110,3 +115,80 @@ type Zone struct {
 func (z Zone) SuffixMatch(suffix string) bool {
 	return strings.HasSuffix(z.Name, suffix)
 }
+
+// DerivedRole is the combination of a role and all of it's policies
+type DerivedRole struct {
+	models.Role
+	Policies map[int]*roles.RolePolicy
+}
+
+func (dr DerivedRole) String() string {
+	return fmt.Sprintf("Role: %v Policies: %v", dr.Role, dr.Policies)
+}
+
+// ToDerivedRoleMap converts a slice of denormalized roles into a map of derived roles
+func ToDerivedRoleMap(denormRoles []*DenormalizedRole) map[int]*DerivedRole {
+	derivedRoles := map[int]*DerivedRole{}
+	if len(denormRoles) == 0 {
+		return derivedRoles
+	}
+	for _, denormRole := range denormRoles {
+		roleID := denormRole.Role.RoleID
+		policyID := denormRole.PolicyID
+		// check if derived role already exists at index
+		if _, ok := derivedRoles[roleID]; !ok {
+			// if not, populate it with current role
+			derivedRoles[roleID] = &DerivedRole{
+				Role:     denormRole.Role,
+				Policies: map[int]*roles.RolePolicy{},
+			}
+		}
+		// check if policy already exists in current role
+		if _, ok := derivedRoles[roleID].Policies[policyID]; !ok {
+			// if not populate policy and empty condition slice
+			derivedRoles[roleID].Policies[policyID] = ToPolicy(&denormRole.Policy)
+		}
+		// if so, condition must be missing from policy.  Append it.
+		if cond := ToCondition(denormRole.Condition); cond != nil {
+			derivedRoles[roleID].Policies[policyID].Conditions = append(derivedRoles[roleID].Policies[policyID].Conditions, *cond)
+		}
+		//derivedRoles[denormRole.Role.RoleID].Policies = append(derivedRoles[denormRole.Role.RoleID].Policies, ToPolicy(&denormRole.Policy, &denormRole.Condition))
+	}
+	return derivedRoles
+}
+
+// DenormalizedRole is the combination of a role and one of it's policies
+type DenormalizedRole struct {
+	models.Role   `boil:",bind"`
+	models.Policy `boil:",bind"`
+	models.Condition `boil:",bind"`
+}
+
+func (dn DenormalizedRole) String() string {
+	return fmt.Sprintf(
+		"Role: (ID: %d Name: %s) Policy: (ID: %d Name: %s)",
+		dn.RoleID, dn.Role.Name, dn.PolicyID, dn.Policy.Name,
+	)
+}
+
+func ToCondition(cond models.Condition) *roles.Condition {
+	// nil cond check
+	if cond.ConditionID == 0 {
+		return nil
+	}
+	return &roles.Condition{
+		Type: cond.Type,
+		Value: cond.Value,
+	}
+}
+
+func ToPolicy(policy *models.Policy) *roles.RolePolicy {
+	return &roles.RolePolicy{
+		ID: 		policy.PolicyID,
+		Effect:     policy.Effect,
+		Actions:    policy.Actions,
+		Resource:   roles.PolicyResourceName(policy.ResourceName),
+		Conditions: []roles.Condition{},
+	}
+}
+
