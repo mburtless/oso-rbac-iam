@@ -275,8 +275,8 @@ func (ds *mockDatastore) GetUserDerivedRoles(ctx context.Context, userID int) (m
 		return map[int]*datastore.DerivedRole{
 			1: {
 				Role: models.Role{RoleID: 1, Name: "viewZonesRole", OrgID: 0},
-				Policies: []*roles.RolePolicy{
-					{
+				Policies: map[int]*roles.RolePolicy{
+					1: {
 						Effect: "allow",
 						Actions: []string{"view"},
 						Resource: "oso:0:zone/*",
@@ -289,8 +289,8 @@ func (ds *mockDatastore) GetUserDerivedRoles(ctx context.Context, userID int) (m
 		return map[int]*datastore.DerivedRole{
 			1: {
 				Role: models.Role{RoleID: 1, Name: "deleteZonesRole", OrgID: 0},
-				Policies: []*roles.RolePolicy{
-					{
+				Policies: map[int]*roles.RolePolicy{
+					1: {
 						Effect: "allow",
 						Actions: []string{"delete"},
 						Resource: "oso:0:zone/*",
