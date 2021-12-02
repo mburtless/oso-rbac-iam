@@ -8,12 +8,67 @@ import (
 	"testing"
 )
 
+func Test_ToEffectivePerms(t *testing.T) {
+	orgId := 1
+	tests := []struct {
+		name string
+		denormRoles []*DenormalizedRole
+		want EffectivePerms
+	}{
+		{
+			name: "empty roles",
+			denormRoles: []*DenormalizedRole{},
+			want: EffectivePerms{},
+		},
+
+		{
+			name: "role with one policy",
+			denormRoles: []*DenormalizedRole{
+				{
+					Role: models.Role{RoleID: 1, Name: "guybrush", OrgID: orgId},
+					Policy: models.Policy{
+						PolicyID: 1,
+						Name: "bar",
+						Effect: "allow",
+						Actions: types.StringArray{"view"},
+						ResourceName: "oso:0:zone/foo",
+					},
+				},
+			},
+			want: EffectivePerms{
+				Namespaces: map[string][]string{
+					"zone": {"oso:0:zone/foo"},
+				},
+				AllowPolicies: PoliciesByNamespace{
+					"oso:0:zone/foo": []*roles.RolePolicy{
+						{
+							ID: 1,
+							Effect:     "allow",
+							Actions:    []string{"view"},
+							Resource:   roles.PolicyResourceName("oso:0:zone/foo"),
+							Conditions: []roles.Condition{},
+						},
+					},
+				},
+				DenyPolicies: PoliciesByNamespace{},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ToEffectivePerms(tt.denormRoles); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ToEffectivePerms() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func Test_ToDerivedRoleMap(t *testing.T) {
 	orgId := 1
 	tests := []struct {
 		name string
 		denormRoles []*DenormalizedRole
-		want map[int]*DerivedRole
+		want DerivedRoles
 	}{
 		{
 			name: "empty roles",

@@ -17,7 +17,8 @@ type Datastore interface {
 	FindUserByKey(ctx context.Context, key string) (*models.User, error)
 	GetUserRoles(ctx context.Context, user *models.User) (models.RoleSlice, error)
 	GetUserRolesAndPolicies(ctx context.Context, userID int) ([]*DenormalizedRole, error)
-	GetUserDerivedRoles(ctx context.Context, userID int) (map[int]*DerivedRole, error)
+	GetUserDerivedRoles(ctx context.Context, userID int) (DerivedRoles, error)
+	GetEffectivePerms(ctx context.Context, userID int) (EffectivePerms, error)
 }
 
 type datastore struct {
@@ -57,12 +58,12 @@ func (ds *datastore) FindUserByKey(ctx context.Context, key string) (*models.Use
 }
 
 func (ds *datastore) GetUserRoles(ctx context.Context, user *models.User) (models.RoleSlice, error) {
-	roles, err := user.Roles().All(ctx, ds.db)
+	r, err := user.Roles().All(ctx, ds.db)
 	if err != nil {
 		return nil, err
 	}
-	ds.logger.Debugw("found roles for user", "roles", roles)
-	return roles, nil
+	ds.logger.Debugw("found roles for user", "roles", r)
+	return r, nil
 }
 
 func (ds *datastore) GetUserRolesAndPolicies(ctx context.Context, userID int) ([]*DenormalizedRole, error) {
@@ -83,7 +84,9 @@ func (ds *datastore) GetUserRolesAndPolicies(ctx context.Context, userID int) ([
 	return dr, nil
 }
 
-func (ds *datastore) GetUserDerivedRoles(ctx context.Context, userID int) (map[int]*DerivedRole, error){
+// GetUserDerivedRoles returns derived set of roles and policies for a user
+// Deprecated: use GetEffectivePerms instead
+func (ds *datastore) GetUserDerivedRoles(ctx context.Context, userID int) (DerivedRoles, error){
 	// load user's roles and policies
 	drs, err := ds.GetUserRolesAndPolicies(ctx, userID)
 	if err != nil {
@@ -91,6 +94,16 @@ func (ds *datastore) GetUserDerivedRoles(ctx context.Context, userID int) (map[i
 		return nil, err
 	}
 	return ToDerivedRoleMap(drs), nil
+}
+
+func (ds *datastore) GetEffectivePerms(ctx context.Context, userID int) (EffectivePerms, error) {
+	// load user's roles and policies
+	drs, err := ds.GetUserRolesAndPolicies(ctx, userID)
+	if err != nil {
+		ds.logger.Errorw("error finding effective permissions for user", "error", err)
+		return EffectivePerms{}, err
+	}
+	return ToEffectivePerms(drs), nil
 }
 
 // TODO: try to delete this by integrating matchers in a different way?
@@ -116,7 +129,6 @@ func (z Zone) SuffixMatch(suffix string) bool {
 	return strings.HasSuffix(z.Name, suffix)
 }
 
-// DerivedRole is the combination of a role and all of it's policies
 type DerivedRole struct {
 	models.Role
 	Policies map[int]*roles.RolePolicy
@@ -126,8 +138,10 @@ func (dr DerivedRole) String() string {
 	return fmt.Sprintf("Role: %v Policies: %v", dr.Role, dr.Policies)
 }
 
+type DerivedRoles map[int]*DerivedRole
+
 // ToDerivedRoleMap converts a slice of denormalized roles into a map of derived roles
-func ToDerivedRoleMap(denormRoles []*DenormalizedRole) map[int]*DerivedRole {
+func ToDerivedRoleMap(denormRoles []*DenormalizedRole) DerivedRoles {
 	derivedRoles := map[int]*DerivedRole{}
 	if len(denormRoles) == 0 {
 		return derivedRoles
@@ -192,3 +206,53 @@ func ToPolicy(policy *models.Policy) *roles.RolePolicy {
 	}
 }
 
+// ToEffectivePerms converts a slice of denormalized roles into a set of effective permissions
+func ToEffectivePerms(denormRoles []*DenormalizedRole) EffectivePerms {
+	perms := NewEffectivePerms()
+	if len(denormRoles) == 0 {
+		return EffectivePerms{}
+	}
+
+	for _, denormRole := range denormRoles {
+		// convert policy
+		p := ToPolicy(&denormRole.Policy)
+		t, err := p.Resource.GetType()
+		if err != nil {
+			// invalid resource type, continue
+			continue
+		}
+		// cache resource name in namespaces
+		perms.Namespaces[t] = append(perms.Namespaces[t], string(p.Resource))
+		// cache policy in appropriate policy store
+		if p.Effect == "allow" {
+			perms.AllowPolicies[string(p.Resource)] = append(perms.AllowPolicies[string(p.Resource)], p)
+		} else if p.Effect == "deny" {
+			perms.DenyPolicies[string(p.Resource)] = append(perms.DenyPolicies[string(p.Resource)], p)
+		}
+		// if effect type is unknown, continue
+	}
+
+	return perms
+}
+
+// NewEffectivePerms returns a set of effective perms with initialized slices
+func NewEffectivePerms() EffectivePerms {
+	return EffectivePerms{
+		Namespaces: map[string][]string{},
+		AllowPolicies: PoliciesByNamespace{},
+		DenyPolicies: PoliciesByNamespace{},
+	}
+}
+
+// EffectivePerms is the optimized set of namespaces and policies that are effective for a given entity
+type EffectivePerms struct {
+	// All namespaces in effective policies indexed by service type
+	Namespaces map[string][]string
+	// All allow policies in effective policies, indexed by namespace
+	AllowPolicies PoliciesByNamespace
+	// All deny policies in effective policies, indexed by namespace
+	DenyPolicies PoliciesByNamespace
+}
+
+// PoliciesByNamespace is used to cache all policies, sorted by namespace they apply to
+type PoliciesByNamespace map[string][]*roles.RolePolicy

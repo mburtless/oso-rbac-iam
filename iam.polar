@@ -7,23 +7,29 @@ allow(user: DerivedUser, action: String, resource) if
     no_deny(user, action, resource);
 
 some_allow(user: DerivedUser, action: String, resource) if
-    [_, role] in user.Roles and
-    # TODO: switch policies to map
-    [_, policy] in role.Policies and
-    policy.Effect = "allow" and
+    # policy exists in allowpolicies for resource
+    [key, policies] in user.Permissions.AllowPolicies and
+    key_contains_resource_name(key, resource) and
+    # policy allows action
+    policy in policies and
     check_policy(policy, action, resource);
 
+key_contains_resource_name(key, _resource: Zone) if
+    key = "oso:0:zone/*";
+
+key_contains_resource_name(key, resource: Zone) if
+    key = resource.ResourceName;
+
 no_deny(user: DerivedUser, action: String, resource) if
-    [_, role] in user.Roles and
-    forall([_, policy] in role.Policies,
-        not policy.Effect = "deny" or
-        not check_policy(policy, action, resource)
+    forall([key, policies] in user.Permissions.DenyPolicies,
+        not key_contains_resource_name(key, resource) or
+        (policy in policies and
+        not check_policy(policy, action, resource))
     );
 
 # policy is a match if it permits the action on the resource and meets specified condition
-check_policy(policy: RolePolicy, action: String, resource) if
-    policy_permits_action(policy, action) and
-    resource_matches(policy, resource);
+check_policy(policy: RolePolicy, action: String, _resource) if
+    policy_permits_action(policy, action);
     # TODO: fix conditionals
     #conditions_hold(policy, resource);
 
@@ -34,16 +40,6 @@ policy_permits_action(policy, _action) if
 # or policy allows specific action
 policy_permits_action(policy, action) if
     action in policy.Actions;
-
-# either policy allows all zone resources
-resource_matches(policy, _resource: Zone) if
-    policy.Resource.IsType("zone") = true and
-    policy.Resource.GetResourceID() = "*";
-
-# or nrn in policy allows specific zone
-resource_matches(policy, resource: Zone) if
-    policy.Resource.IsType("zone") = true and
-    policy.Resource.ContainsResourceName(resource.ResourceName);
 
 # all conditions in policy must pass
 conditions_hold(policy, resource) if

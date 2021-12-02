@@ -95,6 +95,8 @@ func initOso() error {
 	osoClient.RegisterClass(reflect.TypeOf(models.Policy{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(roles.RolePolicy{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(datastore.DerivedRole{}), nil)
+	osoClient.RegisterClass(reflect.TypeOf(datastore.DerivedRoles{}), nil)
+	osoClient.RegisterClass(reflect.TypeOf(datastore.EffectivePerms{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(DerivedUser{}), nil)
 
 	if err := osoClient.LoadFiles([]string{"iam.polar"}); err != nil {

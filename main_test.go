@@ -81,6 +81,16 @@ func Test_setup(t *testing.T) {
 			expCode: 404,
 			expBody: errHTMLZoneNotFound,
 		},
+		{
+			name:   "delete zone without authz via deny",
+			route:  "/zone/0",
+			method: "DELETE",
+			apiKey: "tom",
+			expErr: false,
+			// TODO: change to 401?
+			expCode: 404,
+			expBody: errHTMLZoneNotFound,
+		},
 	}
 	if err := initOso(); err != nil {
 		log.Fatalf("Failed to initialize Oso: %s", err.Error())
@@ -236,6 +246,13 @@ func (ds *mockDatastore) FindUserByKey(ctx context.Context, key string) (*models
 			APIKey: "bob",
 			OrgID: 0,
 		}, nil
+	case "tom":
+		return &models.User{
+			UserID: 3,
+			Name: "tom",
+			APIKey: "tom",
+			OrgID: 0,
+		}, nil
 	}
 
 	return nil, fmt.Errorf("user not found")
@@ -269,7 +286,7 @@ func (ds *mockDatastore) GetUserRolesAndPolicies(ctx context.Context, userID int
 }
 
 
-func (ds *mockDatastore) GetUserDerivedRoles(ctx context.Context, userID int) (map[int]*datastore.DerivedRole, error){
+func (ds *mockDatastore) GetUserDerivedRoles(ctx context.Context, userID int) (datastore.DerivedRoles, error){
 	switch userID {
 	case 1:
 		return map[int]*datastore.DerivedRole{
@@ -303,19 +320,116 @@ func (ds *mockDatastore) GetUserDerivedRoles(ctx context.Context, userID int) (m
 	return nil, fmt.Errorf("role not found for user")
 }
 
+
+func (ds *mockDatastore) GetEffectivePerms(ctx context.Context, userID int) (datastore.EffectivePerms, error) {
+	switch userID {
+	case 1:
+		return datastore.EffectivePerms{
+			Namespaces: map[string][]string{
+				"zone": {"oso:0:zone/*"},
+			},
+			AllowPolicies: datastore.PoliciesByNamespace{
+				"oso:0:zone/*": []*roles.RolePolicy{
+					{
+						Effect: "allow",
+						Actions: []string{"view"},
+						Resource: "oso:0:zone/*",
+						Conditions: nil,
+					},
+				},
+			},
+		}, nil
+	case 2:
+		return datastore.EffectivePerms{
+			Namespaces: map[string][]string{
+				"zone": {"oso:0:zone/*"},
+			},
+			AllowPolicies: datastore.PoliciesByNamespace{
+				"oso:0:zone/*": []*roles.RolePolicy{
+					{
+						Effect: "allow",
+						Actions: []string{"delete"},
+						Resource: "oso:0:zone/*",
+						Conditions: nil,
+					},
+				},
+			},
+		}, nil
+		case 3:
+		return datastore.EffectivePerms{
+			Namespaces: map[string][]string{
+				"zone": {"oso:0:zone/foo.com", "oso:0:zone/*"},
+			},
+			AllowPolicies: datastore.PoliciesByNamespace{
+				"oso:0:zone/*": []*roles.RolePolicy{
+					{
+						Effect: "allow",
+						Actions: []string{"delete"},
+						Resource: "oso:0:zone/*",
+						Conditions: nil,
+					},
+				},
+			},
+			DenyPolicies: datastore.PoliciesByNamespace{
+				"oso:0:zone/foo.com": []*roles.RolePolicy{
+					{
+						Effect: "deny",
+						Actions: []string{"delete"},
+						Resource: "oso:0:zone/foo.com",
+						Conditions: nil,
+					},
+				},
+			},
+		}, nil
+		/*}
+		return map[int]*datastore.DerivedRole{
+			1: {
+				Role: models.Role{RoleID: 1, Name: "viewZonesRole", OrgID: 0},
+				Policies: map[int]*roles.RolePolicy{
+					1: {
+						Effect: "allow",
+						Actions: []string{"view"},
+						Resource: "oso:0:zone/*",
+						Conditions: nil,
+					},
+				},
+			},
+		}, nil
+	case 2:
+		return map[int]*datastore.DerivedRole{
+			1: {
+				Role: models.Role{RoleID: 1, Name: "deleteZonesRole", OrgID: 0},
+				Policies: map[int]*roles.RolePolicy{
+					1: {
+						Effect: "allow",
+						Actions: []string{"delete"},
+						Resource: "oso:0:zone/*",
+						Conditions: nil,
+					},
+				},
+			},
+		}, nil*/
+	}
+	return datastore.EffectivePerms{}, fmt.Errorf("role not found for user")
+}
+
 // datastore for benchmarks
 
 // configures new datastore populated with given roles
 func newBenchDatastore(denormRoles []*datastore.DenormalizedRole) *benchDatastore {
 	return &benchDatastore{
 		denormRoles: denormRoles,
+		// TODO: deprecate field
 		derivedRoles: datastore.ToDerivedRoleMap(denormRoles),
+		permissions: datastore.ToEffectivePerms(denormRoles),
 	}
 }
 
 type benchDatastore struct {
 	denormRoles []*datastore.DenormalizedRole
-	derivedRoles map[int]*datastore.DerivedRole
+	// TODO: deprecate field
+	derivedRoles datastore.DerivedRoles
+	permissions datastore.EffectivePerms
 }
 
 func (ds *benchDatastore) FindZoneByID(ctx context.Context, id int) (*models.Zone, error) {
@@ -361,13 +475,22 @@ func (ds *benchDatastore) GetUserRolesAndPolicies(ctx context.Context, userID in
 	return nil, fmt.Errorf("role not found for user")
 }
 
-func (ds *benchDatastore) GetUserDerivedRoles(ctx context.Context, userID int) (map[int]*datastore.DerivedRole, error){
+func (ds *benchDatastore) GetUserDerivedRoles(ctx context.Context, userID int) (datastore.DerivedRoles, error){
 	switch userID {
 	case 1:
 		return ds.derivedRoles, nil
 	}
 
 	return nil, fmt.Errorf("role not found for user")
+}
+
+func (ds *benchDatastore) GetEffectivePerms(ctx context.Context, userID int) (datastore.EffectivePerms, error){
+	switch userID {
+	case 1:
+		return ds.permissions, nil
+	}
+
+	return datastore.EffectivePerms{}, fmt.Errorf("role not found for user")
 }
 
 // generates a single role with many policies attatched
