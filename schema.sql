@@ -67,7 +67,7 @@ INSERT INTO org (name) VALUES ('Aperture Science');
 INSERT INTO zone (name, resource_name, org_id) VALUES ('gmail.com', 'oso:0:zone/gmail.com', 1);
 INSERT INTO zone (name, resource_name, org_id) VALUES ('react.net', 'oso:0:zone/react.net', 1);
 INSERT INTO zone (name, resource_name, org_id) VALUES ('oso.com', 'oso:0:zone/oso.com', 1);
-INSERT INTO zone (name, resource_name, org_id) VALUES ('authz.com', 'oso:0:zone/authz.net', 1);
+INSERT INTO zone (name, resource_name, org_id) VALUES ('authz.net', 'oso:0:zone/authz.net', 1);
 
 /* conditions */
 INSERT INTO condition (type, value) VALUES ('matchSuffix', 'com');
