@@ -8,7 +8,6 @@ import (
 	"github.com/mburtless/oso-rbac-iam/pkg/roles"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
 	"go.uber.org/zap"
-	"strings"
 )
 
 type Datastore interface {
@@ -17,7 +16,6 @@ type Datastore interface {
 	FindUserByKey(ctx context.Context, key string) (*models.User, error)
 	GetUserRoles(ctx context.Context, user *models.User) (models.RoleSlice, error)
 	GetUserRolesAndPolicies(ctx context.Context, userID int) ([]*DenormalizedRole, error)
-	GetUserDerivedRoles(ctx context.Context, userID int) (DerivedRoles, error)
 	GetEffectivePerms(ctx context.Context, userID int) (EffectivePerms, error)
 }
 
@@ -69,14 +67,14 @@ func (ds *datastore) GetUserRoles(ctx context.Context, user *models.User) (model
 func (ds *datastore) GetUserRolesAndPolicies(ctx context.Context, userID int) ([]*DenormalizedRole, error) {
 	var dr []*DenormalizedRole
 	// TODO: optimize query for new EffectivePerms datastrucuture?
-	// TODO: support conditions
 	err := models.NewQuery(
 		qm.Select(
 			"role.*",
 			"policy.*",
+			// account for nil vals due to left join
 			"COALESCE(c.condition_id, 0) as condition_id",
-			"c.type as type",
-			"c.value as value"),
+			"COALESCE(c.type, '') as type",
+			"COALESCE(c.value, '') as value"),
 		qm.From("user_roles"),
 		qm.InnerJoin("role on user_roles.role_id = role.role_id"),
 		qm.InnerJoin("role_policies on user_roles.role_id = role.role_id"),
@@ -95,18 +93,6 @@ func (ds *datastore) GetUserRolesAndPolicies(ctx context.Context, userID int) ([
 	return dr, nil
 }
 
-// GetUserDerivedRoles returns derived set of roles and policies for a user
-// Deprecated: use GetEffectivePerms instead
-func (ds *datastore) GetUserDerivedRoles(ctx context.Context, userID int) (DerivedRoles, error){
-	// load user's roles and policies
-	drs, err := ds.GetUserRolesAndPolicies(ctx, userID)
-	if err != nil {
-		ds.logger.Errorw("error finding derived roles for user", "error", err)
-		return nil, err
-	}
-	return ToDerivedRoleMap(drs), nil
-}
-
 func (ds *datastore) GetEffectivePerms(ctx context.Context, userID int) (EffectivePerms, error) {
 	// load user's roles and policies
 	drs, err := ds.GetUserRolesAndPolicies(ctx, userID)
@@ -115,62 +101,6 @@ func (ds *datastore) GetEffectivePerms(ctx context.Context, userID int) (Effecti
 		return EffectivePerms{}, err
 	}
 	return ToEffectivePerms(drs), nil
-}
-
-// Zone resource
-// Deprecated: use models.Zone instead
-type Zone struct {
-	Id           int
-	Name         string
-	Org          int
-	ResourceName string
-}
-
-// SuffixMatch returns True if zone name has given suffix
-func (z Zone) SuffixMatch(suffix string) bool {
-	return strings.HasSuffix(z.Name, suffix)
-}
-
-type DerivedRole struct {
-	models.Role
-	Policies map[int]*roles.RolePolicy
-}
-
-func (dr DerivedRole) String() string {
-	return fmt.Sprintf("Role: %v Policies: %v", dr.Role, dr.Policies)
-}
-
-type DerivedRoles map[int]*DerivedRole
-
-// ToDerivedRoleMap converts a slice of denormalized roles into a map of derived roles
-func ToDerivedRoleMap(denormRoles []*DenormalizedRole) DerivedRoles {
-	derivedRoles := map[int]*DerivedRole{}
-	if len(denormRoles) == 0 {
-		return derivedRoles
-	}
-	for _, denormRole := range denormRoles {
-		roleID := denormRole.Role.RoleID
-		policyID := denormRole.PolicyID
-		// check if derived role already exists at index
-		if _, ok := derivedRoles[roleID]; !ok {
-			// if not, populate it with current role
-			derivedRoles[roleID] = &DerivedRole{
-				Role:     denormRole.Role,
-				Policies: map[int]*roles.RolePolicy{},
-			}
-		}
-		// check if policy already exists in current role
-		if _, ok := derivedRoles[roleID].Policies[policyID]; !ok {
-			// if not populate policy and empty condition slice
-			derivedRoles[roleID].Policies[policyID] = ToPolicy(&denormRole.Policy)
-		}
-		// if so, condition must be missing from policy.  Append it.
-		if cond := ToCondition(denormRole.Condition); cond != nil {
-			derivedRoles[roleID].Policies[policyID].Conditions[denormRole.ConditionID] = cond
-		}
-		//derivedRoles[denormRole.Role.RoleID].Policies = append(derivedRoles[denormRole.Role.RoleID].Policies, ToPolicy(&denormRole.Policy, &denormRole.Condition))
-	}
-	return derivedRoles
 }
 
 // DenormalizedRole is the combination of a role and one of it's policies
@@ -195,6 +125,7 @@ func ToCondition(cond models.Condition) *roles.Condition {
 	return &roles.Condition{
 		Type: cond.Type,
 		Value: cond.Value,
+		ID: cond.ConditionID,
 	}
 }
 
@@ -204,9 +135,7 @@ func ToPolicy(policy *models.Policy) *roles.RolePolicy {
 		Effect:     policy.Effect,
 		Actions:    policy.Actions,
 		Resource:   roles.PolicyResourceName(policy.ResourceName),
-		Conditions: map[int]*roles.Condition{
-
-		},
+		Conditions: map[int]*roles.Condition{},
 	}
 }
 
@@ -221,53 +150,39 @@ func ToEffectivePerms(denormRoles []*DenormalizedRole) EffectivePerms {
 		// convert policy
 		p := ToPolicy(&denormRole.Policy)
 		c := ToCondition(denormRole.Condition)
-		// TODO: add this back in to enable quick namespace checking by svc type?
-		/*t, err := p.Resource.GetType()
-		if err != nil {
-			// invalid resource type, continue
-			continue
-		}
-		// cache resource name in namespaces
-		perms.Namespaces[t] = append(perms.Namespaces[t], string(p.Resource))*/
-		// cache policy in appropriate policy store
-		// FIXME: denormRoles could contain multiple entries of same policy if they contain multiple conditions!
-		// how to dedupe in allow policies without itterating to check existence? Yet another hash table probz
-		if p.Effect == "allow" {
-			//perms.AllowPolicies[string(p.Resource)] = append(perms.AllowPolicies[string(p.Resource)], p)
-			// check if v exists for policy id key in allow policy for this namespace
-			// if so, add condition at condition id
-			if _, ok := perms.AllowPolicies[string(p.Resource)][p.ID]; ok && c != nil {
-				perms.AllowPolicies[string(p.Resource)][p.ID].Conditions[denormRole.ConditionID] = c
-			} else {
-				// if not, add policy and condition
-				if c != nil {
-					p.Conditions[denormRole.ConditionID] = c
-				}
-				if perms.AllowPolicies[string(p.Resource)] == nil {
-					perms.AllowPolicies[string(p.Resource)]	= map[int]*roles.RolePolicy{}
-				}
 
-				perms.AllowPolicies[string(p.Resource)][p.ID] = p
-			}
+		// cache policy in appropriate policy store
+		if p.Effect == "allow" {
+			cachePolicy(perms.AllowPolicies, p, c)
 		} else if p.Effect == "deny" {
-			//perms.DenyPolicies[string(p.Resource)] = append(perms.DenyPolicies[string(p.Resource)], p)
-			if _, ok := perms.DenyPolicies[string(p.Resource)][p.ID]; ok && c != nil {
-				perms.DenyPolicies[string(p.Resource)][p.ID].Conditions[denormRole.ConditionID] = c
-			} else {
-				// if not, add policy and condition
-				if c != nil {
-					p.Conditions[denormRole.ConditionID] = c
-				}
-				if perms.AllowPolicies[string(p.Resource)] == nil {
-					perms.AllowPolicies[string(p.Resource)]	= map[int]*roles.RolePolicy{}
-				}
-				perms.DenyPolicies[string(p.Resource)][p.ID] = p
-			}
+			cachePolicy(perms.DenyPolicies, p, c)
 		}
-		// if effect type is unknown, continue
+		// if effect type is unknown, ignore
 	}
 
 	return perms
+}
+
+func cachePolicy(policyCache PoliciesByNamespace, policy *roles.RolePolicy, cond *roles.Condition) {
+	policyName := string(policy.Resource)
+	// check if policy has already been cached for this namespace
+	if _, ok := policyCache[policyName][policy.ID]; ok && cond != nil {
+		// if so, condition must be missing.  Cache it.
+		policyCache[policyName][policy.ID].Conditions[cond.ID] = cond
+	} else {
+		// if not, cache policy and condition, if applicable
+
+		// init nil map
+		if policyCache[policyName] == nil {
+			policyCache[policyName]= map[int]*roles.RolePolicy{}
+		}
+
+		if cond != nil {
+			policy.Conditions[cond.ID] = cond
+		}
+
+		policyCache[policyName][policy.ID] = policy
+	}
 }
 
 // NewEffectivePerms returns a set of effective perms with initialized slices

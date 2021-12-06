@@ -81,12 +81,7 @@ func initOso() error {
 		return err
 	}
 
-	/*
-	osoClient.RegisterClass(reflect.TypeOf(Zone{}), nil)
-	osoClient.RegisterClass(reflect.TypeOf(User{}), nil)
-	osoClient.RegisterClass(reflect.TypeOf(Role{}), nil)
-	osoClient.RegisterClass(reflect.TypeOf(RolePolicy{}), nil)
-	*/
+	// Register custom types with Oso core
 	if err := osoClient.RegisterClass(reflect.TypeOf(roles.PolicyResourceName("foo")), nil); err != nil {
 		return err
 	}
@@ -95,12 +90,11 @@ func initOso() error {
 	osoClient.RegisterClass(reflect.TypeOf(models.Role{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(models.Policy{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(roles.RolePolicy{}), nil)
-	osoClient.RegisterClass(reflect.TypeOf(datastore.DerivedRole{}), nil)
-	osoClient.RegisterClass(reflect.TypeOf(datastore.DerivedRoles{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(datastore.EffectivePerms{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(DerivedUser{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(matchers.HasSuffix{}), nil)
 
+	// Load Oso policy
 	if err := osoClient.LoadFiles([]string{"iam.polar"}); err != nil {
 		return err
 	}
@@ -108,11 +102,11 @@ func initOso() error {
 }
 
 func initPG() (*sql.DB, error) {
-
 	db, err := sql.Open("postgres", `dbname=oso-rbac-iam host=localhost user=oso password=ososecretpwd sslmode=disable`)
 	if err != nil {
 		return nil, err
 	}
+
 	logger.Info("Connected to PG")
 	return db, nil
 }

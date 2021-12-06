@@ -32,6 +32,7 @@ func (rp RolePolicy) String() string {
 type Condition struct {
 	Type  string
 	Value interface{}
+	ID int
 }
 // PolicyResourceName is a resource name modifier for use in Policies
 type PolicyResourceName string

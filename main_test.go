@@ -286,42 +286,6 @@ func (ds *mockDatastore) GetUserRolesAndPolicies(_ context.Context, userID int) 
 	return nil, fmt.Errorf("role not found for user")
 }
 
-
-func (ds *mockDatastore) GetUserDerivedRoles(_ context.Context, userID int) (datastore.DerivedRoles, error){
-	switch userID {
-	case 1:
-		return map[int]*datastore.DerivedRole{
-			1: {
-				Role: models.Role{RoleID: 1, Name: "viewZonesRole", OrgID: 0},
-				Policies: map[int]*roles.RolePolicy{
-					1: {
-						Effect: "allow",
-						Actions: []string{"view"},
-						Resource: "oso:0:zone/*",
-						Conditions: map[int]*roles.Condition{},
-					},
-				},
-			},
-		}, nil
-	case 2:
-		return map[int]*datastore.DerivedRole{
-			1: {
-				Role: models.Role{RoleID: 1, Name: "deleteZonesRole", OrgID: 0},
-				Policies: map[int]*roles.RolePolicy{
-					1: {
-						Effect: "allow",
-						Actions: []string{"delete"},
-						Resource: "oso:0:zone/*",
-						Conditions: map[int]*roles.Condition{},
-					},
-				},
-			},
-		}, nil
-	}
-	return nil, fmt.Errorf("role not found for user")
-}
-
-
 func (ds *mockDatastore) GetEffectivePerms(_ context.Context, userID int) (datastore.EffectivePerms, error) {
 	switch userID {
 	case 1:
@@ -400,35 +364,6 @@ func (ds *mockDatastore) GetEffectivePerms(_ context.Context, userID int) (datas
 				},
 			},
 		}, nil
-
-		/*}
-		return map[int]*datastore.DerivedRole{
-			1: {
-				Role: models.Role{RoleID: 1, Name: "viewZonesRole", OrgID: 0},
-				Policies: map[int]*roles.RolePolicy{
-					1: {
-						Effect: "allow",
-						Actions: []string{"view"},
-						Resource: "oso:0:zone/*",
-						Conditions: nil,
-					},
-				},
-			},
-		}, nil
-	case 2:
-		return map[int]*datastore.DerivedRole{
-			1: {
-				Role: models.Role{RoleID: 1, Name: "deleteZonesRole", OrgID: 0},
-				Policies: map[int]*roles.RolePolicy{
-					1: {
-						Effect: "allow",
-						Actions: []string{"delete"},
-						Resource: "oso:0:zone/*",
-						Conditions: nil,
-					},
-				},
-			},
-		}, nil*/
 	}
 	return datastore.EffectivePerms{}, fmt.Errorf("role not found for user")
 }
@@ -439,16 +374,12 @@ func (ds *mockDatastore) GetEffectivePerms(_ context.Context, userID int) (datas
 func newBenchDatastore(denormRoles []*datastore.DenormalizedRole) *benchDatastore {
 	return &benchDatastore{
 		denormRoles: denormRoles,
-		// TODO: deprecate field
-		derivedRoles: datastore.ToDerivedRoleMap(denormRoles),
 		permissions: datastore.ToEffectivePerms(denormRoles),
 	}
 }
 
 type benchDatastore struct {
 	denormRoles []*datastore.DenormalizedRole
-	// TODO: deprecate field
-	derivedRoles datastore.DerivedRoles
 	permissions datastore.EffectivePerms
 }
 
@@ -490,15 +421,6 @@ func (ds *benchDatastore) GetUserRolesAndPolicies(_ context.Context, userID int)
 	switch userID {
 	case 1:
 		return ds.denormRoles, nil
-	}
-
-	return nil, fmt.Errorf("role not found for user")
-}
-
-func (ds *benchDatastore) GetUserDerivedRoles(_ context.Context, userID int) (datastore.DerivedRoles, error){
-	switch userID {
-	case 1:
-		return ds.derivedRoles, nil
 	}
 
 	return nil, fmt.Errorf("role not found for user")

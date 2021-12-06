@@ -18,7 +18,6 @@ var errMissingReqMeta = errors.New("request metadata not found in user context")
 // DerivedUser is a user and all of it's roles and policies
 type DerivedUser struct {
 	User *models.User
-	Roles map[int]*datastore.DerivedRole
 	Permissions datastore.EffectivePerms
 }
 
