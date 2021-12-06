@@ -1,0 +1,16 @@
+[psql]
+dbname = "oso-rbac-iam"
+user = "postgres"
+pass = "mysecretpassword"
+host = "localhost"
+sslmode = "disable"
+
+[[types]]
+  [types.match]
+    db_type = "ARRAYUSER-DEFINED"
+    nullable = true
+  [types.replace]
+    type = "types.GenericArray"
+    arr_type = "roles.Condition"
+  [types.imports]
+    third_party = ['"github.com/mburtless/oso-rbac-iam/pkg/roles"']

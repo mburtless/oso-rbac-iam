@@ -1,11 +1,11 @@
-package main
+package roles
 
 import (
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-func TestResourceIdentifierV2_InNamespace(t *testing.T) {
+func TestPolicyResourceName_ContainsResourceName(t *testing.T) {
 	tests := []struct {
 		name               string
 		policyResourceName PolicyResourceName
