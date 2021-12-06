@@ -92,15 +92,14 @@ func Test_setup(t *testing.T) {
 			expBody: errHTMLZoneNotFound,
 		},
 		{
-			name:   "view zone with matchSuffix conditional",
-			route:  "/zone/0",
-			method: "GET",
-			apiKey: "jim",
-			expErr: false,
+			name:    "view zone with matchSuffix conditional",
+			route:   "/zone/0",
+			method:  "GET",
+			apiKey:  "jim",
+			expErr:  false,
 			expCode: 200,
 			expBody: "<h1>A Repo</h1><p>Welcome jim to zone foo.com</p>",
 		},
-
 	}
 	if err := initOso(); err != nil {
 		log.Fatalf("Failed to initialize Oso: %s", err.Error())
@@ -155,7 +154,7 @@ func benchmarkAuthz(b *testing.B, roles []*datastore.DenormalizedRole) {
 
 func Benchmark_MultiplePolicyNoAuthz(b *testing.B) {
 	tests := []int{10, 100, 500, 1000}
-	for _, t := range tests{
+	for _, t := range tests {
 		b.Run(fmt.Sprintf("%d policies", t), func(b *testing.B) {
 			// gen denorm roles with given number of policies
 			roles, err := genSingleRoleManyPolicies(t)
@@ -169,15 +168,15 @@ func Benchmark_MultiplePolicyNoAuthz(b *testing.B) {
 
 func Benchmark_MultiplePolicyWithAuthz(b *testing.B) {
 	tests := []int{10, 100, 500, 1000}
-	for _, t := range tests{
+	for _, t := range tests {
 		b.Run(fmt.Sprintf("%d policies", t), func(b *testing.B) {
 			// gen denorm roles with given number of policies
-			roles, err := genSingleRoleManyPolicies(t-1)
+			roles, err := genSingleRoleManyPolicies(t - 1)
 			// append a role that allows authz
 			roles = append(roles, &datastore.DenormalizedRole{
 				Role: models.Role{RoleID: 1, Name: "viewZonesRole", OrgID: 0},
 				Policy: models.Policy{
-					PolicyID: t+1, Name: "viewZonesPolicy", Effect: "allow", Actions: types.StringArray{"view"}, ResourceName: "oso:0:zone/*"},
+					PolicyID: t + 1, Name: "viewZonesPolicy", Effect: "allow", Actions: types.StringArray{"view"}, ResourceName: "oso:0:zone/*"},
 			})
 			if err != nil {
 				b.Fatal(err)
@@ -186,7 +185,6 @@ func Benchmark_MultiplePolicyWithAuthz(b *testing.B) {
 		})
 	}
 }
-
 
 func Benchmark_MultipleRolesNoAuthz(b *testing.B) {
 	tests := []int{10, 100, 500, 1000}
@@ -207,14 +205,14 @@ func Benchmark_MultipleRolesWithAuthz(b *testing.B) {
 	for _, t := range tests {
 		b.Run(fmt.Sprintf("%d roles", t), func(b *testing.B) {
 			// gen denorm roles with given number of roles
-			roles, err := genManyRolesSinglePolicy(t-1)
+			roles, err := genManyRolesSinglePolicy(t - 1)
 			if err != nil {
 				b.Fatal(err)
 			}
 			roles = append(roles, &datastore.DenormalizedRole{
-				Role: models.Role{RoleID: t+1, Name: "viewZonesRole", OrgID: 0},
+				Role: models.Role{RoleID: t + 1, Name: "viewZonesRole", OrgID: 0},
 				Policy: models.Policy{
-					PolicyID: t+1, Name: "viewZonesPolicy", Effect: "allow", Actions: types.StringArray{"view"}, ResourceName: "oso:0:zone/*"},
+					PolicyID: t + 1, Name: "viewZonesPolicy", Effect: "allow", Actions: types.StringArray{"view"}, ResourceName: "oso:0:zone/*"},
 			})
 			benchmarkAuthz(b, roles)
 		})
@@ -222,15 +220,15 @@ func Benchmark_MultipleRolesWithAuthz(b *testing.B) {
 }
 
 // datastore for unit tests
-type mockDatastore struct {}
+type mockDatastore struct{}
 
 func (ds *mockDatastore) FindZoneByID(_ context.Context, id int) (*models.Zone, error) {
 	if id == 0 {
 		return &models.Zone{
-			ZoneID: 1,
-			Name: "foo.com",
+			ZoneID:       1,
+			Name:         "foo.com",
 			ResourceName: "oso:0:zone/foo.com",
-			OrgID: 0,
+			OrgID:        0,
 		}, nil
 	}
 	return nil, fmt.Errorf("zone not found")
@@ -243,16 +241,16 @@ func (ds *mockDatastore) ListZonesByOrgID(_ context.Context, _ int) (*models.Zon
 func (ds *mockDatastore) FindUserByKey(_ context.Context, key string) (*models.User, error) {
 	keyToID := map[string]int{
 		"john": 1,
-		"bob": 2,
-		"tom": 3,
-		"jim": 4,
+		"bob":  2,
+		"tom":  3,
+		"jim":  4,
 	}
 	if id, ok := keyToID[key]; ok {
 		return &models.User{
 			UserID: id,
-			Name: key,
+			Name:   key,
 			APIKey: key,
-			OrgID: 0,
+			OrgID:  0,
 		}, nil
 	}
 
@@ -296,9 +294,9 @@ func (ds *mockDatastore) GetEffectivePerms(_ context.Context, userID int) (datas
 			AllowPolicies: datastore.PoliciesByNamespace{
 				"oso:0:zone/*": map[int]*roles.RolePolicy{
 					1: {
-						Effect: "allow",
-						Actions: []string{"view"},
-						Resource: "oso:0:zone/*",
+						Effect:     "allow",
+						Actions:    []string{"view"},
+						Resource:   "oso:0:zone/*",
 						Conditions: map[int]*roles.Condition{},
 					},
 				},
@@ -312,15 +310,15 @@ func (ds *mockDatastore) GetEffectivePerms(_ context.Context, userID int) (datas
 			AllowPolicies: datastore.PoliciesByNamespace{
 				"oso:0:zone/*": map[int]*roles.RolePolicy{
 					1: {
-						Effect: "allow",
-						Actions: []string{"delete"},
-						Resource: "oso:0:zone/*",
+						Effect:     "allow",
+						Actions:    []string{"delete"},
+						Resource:   "oso:0:zone/*",
 						Conditions: map[int]*roles.Condition{},
 					},
 				},
 			},
 		}, nil
-		case 3:
+	case 3:
 		return datastore.EffectivePerms{
 			Namespaces: map[string][]string{
 				"zone": {"oso:0:zone/foo.com", "oso:0:zone/*"},
@@ -328,9 +326,9 @@ func (ds *mockDatastore) GetEffectivePerms(_ context.Context, userID int) (datas
 			AllowPolicies: datastore.PoliciesByNamespace{
 				"oso:0:zone/*": map[int]*roles.RolePolicy{
 					1: {
-						Effect: "allow",
-						Actions: []string{"delete"},
-						Resource: "oso:0:zone/*",
+						Effect:     "allow",
+						Actions:    []string{"delete"},
+						Resource:   "oso:0:zone/*",
 						Conditions: map[int]*roles.Condition{},
 					},
 				},
@@ -338,9 +336,9 @@ func (ds *mockDatastore) GetEffectivePerms(_ context.Context, userID int) (datas
 			DenyPolicies: datastore.PoliciesByNamespace{
 				"oso:0:zone/foo.com": map[int]*roles.RolePolicy{
 					2: {
-						Effect: "deny",
-						Actions: []string{"delete"},
-						Resource: "oso:0:zone/foo.com",
+						Effect:     "deny",
+						Actions:    []string{"delete"},
+						Resource:   "oso:0:zone/foo.com",
 						Conditions: map[int]*roles.Condition{},
 					},
 				},
@@ -354,8 +352,8 @@ func (ds *mockDatastore) GetEffectivePerms(_ context.Context, userID int) (datas
 			AllowPolicies: datastore.PoliciesByNamespace{
 				"oso:0:zone/*": map[int]*roles.RolePolicy{
 					1: {
-						Effect: "allow",
-						Actions: []string{"view"},
+						Effect:   "allow",
+						Actions:  []string{"view"},
 						Resource: "oso:0:zone/*",
 						Conditions: map[int]*roles.Condition{
 							1: {Type: "matchSuffix", Value: "com"},
@@ -386,13 +384,13 @@ type benchDatastore struct {
 func (ds *benchDatastore) FindZoneByID(_ context.Context, id int) (*models.Zone, error) {
 	if id == 0 {
 		return &models.Zone{
-			ZoneID: 1,
-			Name: "foo.com",
+			ZoneID:       1,
+			Name:         "foo.com",
 			ResourceName: "oso:0:zone/foo.com",
-			OrgID: 0,
-	}, nil
-}
-return nil, fmt.Errorf("zone not found")
+			OrgID:        0,
+		}, nil
+	}
+	return nil, fmt.Errorf("zone not found")
 }
 
 func (ds *benchDatastore) ListZonesByOrgID(_ context.Context, _ int) (*models.ZoneSlice, error) {
@@ -404,9 +402,9 @@ func (ds *benchDatastore) FindUserByKey(_ context.Context, key string) (*models.
 	case "bob":
 		return &models.User{
 			UserID: 1,
-			Name: "bob",
+			Name:   "bob",
 			APIKey: "bob",
-			OrgID: 0,
+			OrgID:  0,
 		}, nil
 	}
 
@@ -426,7 +424,7 @@ func (ds *benchDatastore) GetUserRolesAndPolicies(_ context.Context, userID int)
 	return nil, fmt.Errorf("role not found for user")
 }
 
-func (ds *benchDatastore) GetEffectivePerms(_ context.Context, userID int) (datastore.EffectivePerms, error){
+func (ds *benchDatastore) GetEffectivePerms(_ context.Context, userID int) (datastore.EffectivePerms, error) {
 	switch userID {
 	case 1:
 		return ds.permissions, nil
@@ -472,10 +470,10 @@ func genManyRolesSinglePolicy(numRoles int) ([]*datastore.DenormalizedRole, erro
 func genPolicy(policyName string, policyId int) models.Policy {
 	resourceName := fmt.Sprintf("oso:0:zone/%s.com", policyName)
 	return models.Policy{
-		PolicyID: policyId,
-		Name: policyName,
-		Effect: "allow",
-		Actions: types.StringArray{"view"},
+		PolicyID:     policyId,
+		Name:         policyName,
+		Effect:       "allow",
+		Actions:      types.StringArray{"view"},
 		ResourceName: resourceName,
 	}
 }

@@ -11,8 +11,6 @@ var (
 	errBadResourceName = fmt.Errorf("improperly formated resource name")
 )
 
-
-
 // RolePolicy resource
 type RolePolicy struct {
 	ID int

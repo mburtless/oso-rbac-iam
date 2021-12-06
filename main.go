@@ -18,8 +18,8 @@ import (
 )
 
 var (
-	osoClient oso.Oso
-	logger *zap.SugaredLogger
+	osoClient        oso.Oso
+	logger           *zap.SugaredLogger
 	errMissingZoneId = errors.New("zoneId not found in request params")
 	errMissingAPIKey = errors.New("x-api-key value not found in request headers")
 )

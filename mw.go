@@ -17,7 +17,7 @@ var errMissingReqMeta = errors.New("request metadata not found in user context")
 
 // DerivedUser is a user and all of it's roles and policies
 type DerivedUser struct {
-	User *models.User
+	User        *models.User
 	Permissions datastore.EffectivePerms
 }
 
@@ -39,14 +39,8 @@ func setReqMeta(c *fiber.Ctx, ds datastore.Datastore) error {
 		logger.Errorw("error finding user by api key", "error", err)
 		return c.Status(401).SendString("<h1>Whoops!<h1><p>User not found</p>")
 	}
-	// load user's roles and policies
-	/*drs, err := ds.GetUserRolesAndPolicies(context.Background(), reqMeta.User.UserID)
-	if err != nil {
-		logger.Errorw("error finding derived roles for user", "error", err)
-		return c.Status(401).SendString("<h1>Whoops!<h1><p>User not found</p>")
-	}
-	reqMeta.Roles = datastore.ToDerivedRoleMap(drs)*/
-	//reqMeta.Roles, err = ds.GetUserDerivedRoles(context.Background(), reqMeta.User.UserID)
+
+	// load roles and policies from ds into set of permissions
 	reqMeta.Permissions, err = ds.GetEffectivePerms(context.Background(), reqMeta.User.UserID)
 	if err != nil {
 		logger.Errorw("error finding effective permissions for user", "error", err)

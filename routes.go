@@ -11,9 +11,9 @@ import (
 )
 
 var (
-	errHTMLZoneNotFound = "<h1>Whoops!</h1><p>That zone was not found</p>"
+	errHTMLZoneNotFound  = "<h1>Whoops!</h1><p>That zone was not found</p>"
 	errHTMLZonesNotFound = "<h1>Whoops!</h1><p>No zones found in org</p>"
-	errHTMLUserNotFound = "<h1>Whoops!<h1><p>User not found</p>"
+	errHTMLUserNotFound  = "<h1>Whoops!<h1><p>User not found</p>"
 )
 
 // doesn't actually delete zone from DS, just simulates to test authz call
@@ -65,7 +65,7 @@ func listZonesRoute(c *fiber.Ctx, ds datastore.Datastore) error {
 		return c.Status(401).SendString(errHTMLUserNotFound)
 	}
 	zs, err := ds.ListZonesByOrgID(context.Background(), reqUser.User.OrgID)
-	if err  != nil {
+	if err != nil {
 		logger.Errorw("error listing zones for org", "orgID", reqUser.User.OrgID, "error", err)
 		return c.Status(404).SendString(errHTMLZonesNotFound)
 	}
@@ -100,4 +100,3 @@ func authorizeZoneRoute(u *DerivedUser, action string, z *models.Zone) error {
 
 	return nil
 }
-
