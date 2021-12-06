@@ -7,11 +7,13 @@ allow(user: DerivedUser, action: String, resource) if
     no_deny(user, action, resource);
 
 some_allow(user: DerivedUser, action: String, resource) if
-    # policy exists in allowpolicies for resource
-    [key, policies] in user.Permissions.AllowPolicies and
-    key_contains_resource_name(key, resource) and
+    # policy exists in allow policies for resource
+    #[key, policies] in user.Permissions.AllowPolicies and
+    #key_contains_resource_name(key, resource) and
+    (["oso:0:zone/*", policies] in user.Permissions.AllowPolicies or
+    [(resource.ResourceName), policies] in user.Permissions.AllowPolicies) and
     # policy allows action
-    policy in policies and
+    [_, policy] in policies and
     check_policy(policy, action, resource);
 
 key_contains_resource_name(key, _resource: Zone) if
@@ -21,17 +23,17 @@ key_contains_resource_name(key, resource: Zone) if
     key = resource.ResourceName;
 
 no_deny(user: DerivedUser, action: String, resource) if
-    forall([key, policies] in user.Permissions.DenyPolicies,
-        not key_contains_resource_name(key, resource) or
-        (policy in policies and
-        not check_policy(policy, action, resource))
+    forall(
+        (["oso:0:zone/*", policies] in user.Permissions.DenyPolicies or
+         [(resource.ResourceName), policies] in user.Permissions.DenyPolicies),
+        [_, policy] in policies and
+        not check_policy(policy, action, resource)
     );
 
 # policy is a match if it permits the action on the resource and meets specified condition
-check_policy(policy: RolePolicy, action: String, _resource) if
-    policy_permits_action(policy, action);
-    # TODO: fix conditionals
-    #conditions_hold(policy, resource);
+check_policy(policy: RolePolicy, action: String, resource) if
+    policy_permits_action(policy, action) and
+    conditions_hold(policy, resource);
 
 # either policy allows all actions
 policy_permits_action(policy, _action) if
@@ -44,7 +46,7 @@ policy_permits_action(policy, action) if
 # all conditions in policy must pass
 conditions_hold(policy, resource) if
     forall(
-        condition in policy.Conditions,
+        [_, condition] in policy.Conditions,
         check_conditions(condition, resource)
     );
 
@@ -57,5 +59,5 @@ check_conditions(condition, resource) if
 
 # matchSuffix type policy
 check_conditions(condition, resource) if
-    condition.Type = "matchSuffix" and
-    resource.SuffixMatch(condition.Value);
+   condition.Type = "matchSuffix" and
+   HasSuffix.Match(resource.Name, condition.Value);

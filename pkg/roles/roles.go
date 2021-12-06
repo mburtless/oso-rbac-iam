@@ -19,7 +19,7 @@ type RolePolicy struct {
 	Effect     string
 	Actions    []string
 	Resource   PolicyResourceName
-	Conditions []Condition
+	Conditions map[int]*Condition
 }
 
 func (rp RolePolicy) String() string {

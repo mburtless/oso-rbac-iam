@@ -91,6 +91,16 @@ func Test_setup(t *testing.T) {
 			expCode: 404,
 			expBody: errHTMLZoneNotFound,
 		},
+		{
+			name:   "view zone with matchSuffix conditional",
+			route:  "/zone/0",
+			method: "GET",
+			apiKey: "jim",
+			expErr: false,
+			expCode: 200,
+			expBody: "<h1>A Repo</h1><p>Welcome jim to zone foo.com</p>",
+		},
+
 	}
 	if err := initOso(); err != nil {
 		log.Fatalf("Failed to initialize Oso: %s", err.Error())
@@ -214,7 +224,7 @@ func Benchmark_MultipleRolesWithAuthz(b *testing.B) {
 // datastore for unit tests
 type mockDatastore struct {}
 
-func (ds *mockDatastore) FindZoneByID(ctx context.Context, id int) (*models.Zone, error) {
+func (ds *mockDatastore) FindZoneByID(_ context.Context, id int) (*models.Zone, error) {
 	if id == 0 {
 		return &models.Zone{
 			ZoneID: 1,
@@ -226,31 +236,22 @@ func (ds *mockDatastore) FindZoneByID(ctx context.Context, id int) (*models.Zone
 	return nil, fmt.Errorf("zone not found")
 }
 
-func (ds *mockDatastore) ListZonesByOrgID(ctx context.Context, orgID int) (*models.ZoneSlice, error) {
+func (ds *mockDatastore) ListZonesByOrgID(_ context.Context, _ int) (*models.ZoneSlice, error) {
 	return nil, nil
 }
 
-func (ds *mockDatastore) FindUserByKey(ctx context.Context, key string) (*models.User, error) {
-	switch key {
-	case "john":
+func (ds *mockDatastore) FindUserByKey(_ context.Context, key string) (*models.User, error) {
+	keyToID := map[string]int{
+		"john": 1,
+		"bob": 2,
+		"tom": 3,
+		"jim": 4,
+	}
+	if id, ok := keyToID[key]; ok {
 		return &models.User{
-			UserID: 1,
-			Name: "john",
-			APIKey: "john",
-			OrgID: 0,
-		}, nil
-	case "bob":
-		return &models.User{
-			UserID: 2,
-			Name: "bob",
-			APIKey: "bob",
-			OrgID: 0,
-		}, nil
-	case "tom":
-		return &models.User{
-			UserID: 3,
-			Name: "tom",
-			APIKey: "tom",
+			UserID: id,
+			Name: key,
+			APIKey: key,
 			OrgID: 0,
 		}, nil
 	}
@@ -258,11 +259,11 @@ func (ds *mockDatastore) FindUserByKey(ctx context.Context, key string) (*models
 	return nil, fmt.Errorf("user not found")
 }
 
-func (ds *mockDatastore) GetUserRoles(ctx context.Context, user *models.User) (models.RoleSlice, error) {
+func (ds *mockDatastore) GetUserRoles(_ context.Context, _ *models.User) (models.RoleSlice, error) {
 	return nil, nil
 }
 
-func (ds *mockDatastore) GetUserRolesAndPolicies(ctx context.Context, userID int) ([]*datastore.DenormalizedRole, error) {
+func (ds *mockDatastore) GetUserRolesAndPolicies(_ context.Context, userID int) ([]*datastore.DenormalizedRole, error) {
 	switch userID {
 	case 1:
 		return []*datastore.DenormalizedRole{
@@ -286,7 +287,7 @@ func (ds *mockDatastore) GetUserRolesAndPolicies(ctx context.Context, userID int
 }
 
 
-func (ds *mockDatastore) GetUserDerivedRoles(ctx context.Context, userID int) (datastore.DerivedRoles, error){
+func (ds *mockDatastore) GetUserDerivedRoles(_ context.Context, userID int) (datastore.DerivedRoles, error){
 	switch userID {
 	case 1:
 		return map[int]*datastore.DerivedRole{
@@ -297,7 +298,7 @@ func (ds *mockDatastore) GetUserDerivedRoles(ctx context.Context, userID int) (d
 						Effect: "allow",
 						Actions: []string{"view"},
 						Resource: "oso:0:zone/*",
-						Conditions: nil,
+						Conditions: map[int]*roles.Condition{},
 					},
 				},
 			},
@@ -311,7 +312,7 @@ func (ds *mockDatastore) GetUserDerivedRoles(ctx context.Context, userID int) (d
 						Effect: "allow",
 						Actions: []string{"delete"},
 						Resource: "oso:0:zone/*",
-						Conditions: nil,
+						Conditions: map[int]*roles.Condition{},
 					},
 				},
 			},
@@ -321,7 +322,7 @@ func (ds *mockDatastore) GetUserDerivedRoles(ctx context.Context, userID int) (d
 }
 
 
-func (ds *mockDatastore) GetEffectivePerms(ctx context.Context, userID int) (datastore.EffectivePerms, error) {
+func (ds *mockDatastore) GetEffectivePerms(_ context.Context, userID int) (datastore.EffectivePerms, error) {
 	switch userID {
 	case 1:
 		return datastore.EffectivePerms{
@@ -329,12 +330,12 @@ func (ds *mockDatastore) GetEffectivePerms(ctx context.Context, userID int) (dat
 				"zone": {"oso:0:zone/*"},
 			},
 			AllowPolicies: datastore.PoliciesByNamespace{
-				"oso:0:zone/*": []*roles.RolePolicy{
-					{
+				"oso:0:zone/*": map[int]*roles.RolePolicy{
+					1: {
 						Effect: "allow",
 						Actions: []string{"view"},
 						Resource: "oso:0:zone/*",
-						Conditions: nil,
+						Conditions: map[int]*roles.Condition{},
 					},
 				},
 			},
@@ -345,12 +346,12 @@ func (ds *mockDatastore) GetEffectivePerms(ctx context.Context, userID int) (dat
 				"zone": {"oso:0:zone/*"},
 			},
 			AllowPolicies: datastore.PoliciesByNamespace{
-				"oso:0:zone/*": []*roles.RolePolicy{
-					{
+				"oso:0:zone/*": map[int]*roles.RolePolicy{
+					1: {
 						Effect: "allow",
 						Actions: []string{"delete"},
 						Resource: "oso:0:zone/*",
-						Conditions: nil,
+						Conditions: map[int]*roles.Condition{},
 					},
 				},
 			},
@@ -361,26 +362,45 @@ func (ds *mockDatastore) GetEffectivePerms(ctx context.Context, userID int) (dat
 				"zone": {"oso:0:zone/foo.com", "oso:0:zone/*"},
 			},
 			AllowPolicies: datastore.PoliciesByNamespace{
-				"oso:0:zone/*": []*roles.RolePolicy{
-					{
+				"oso:0:zone/*": map[int]*roles.RolePolicy{
+					1: {
 						Effect: "allow",
 						Actions: []string{"delete"},
 						Resource: "oso:0:zone/*",
-						Conditions: nil,
+						Conditions: map[int]*roles.Condition{},
 					},
 				},
 			},
 			DenyPolicies: datastore.PoliciesByNamespace{
-				"oso:0:zone/foo.com": []*roles.RolePolicy{
-					{
+				"oso:0:zone/foo.com": map[int]*roles.RolePolicy{
+					2: {
 						Effect: "deny",
 						Actions: []string{"delete"},
 						Resource: "oso:0:zone/foo.com",
-						Conditions: nil,
+						Conditions: map[int]*roles.Condition{},
 					},
 				},
 			},
 		}, nil
+	case 4:
+		return datastore.EffectivePerms{
+			Namespaces: map[string][]string{
+				"zone": {"oso:0:zone/*"},
+			},
+			AllowPolicies: datastore.PoliciesByNamespace{
+				"oso:0:zone/*": map[int]*roles.RolePolicy{
+					1: {
+						Effect: "allow",
+						Actions: []string{"view"},
+						Resource: "oso:0:zone/*",
+						Conditions: map[int]*roles.Condition{
+							1: {Type: "matchSuffix", Value: "com"},
+						},
+					},
+				},
+			},
+		}, nil
+
 		/*}
 		return map[int]*datastore.DerivedRole{
 			1: {
@@ -432,7 +452,7 @@ type benchDatastore struct {
 	permissions datastore.EffectivePerms
 }
 
-func (ds *benchDatastore) FindZoneByID(ctx context.Context, id int) (*models.Zone, error) {
+func (ds *benchDatastore) FindZoneByID(_ context.Context, id int) (*models.Zone, error) {
 	if id == 0 {
 		return &models.Zone{
 			ZoneID: 1,
@@ -444,11 +464,11 @@ func (ds *benchDatastore) FindZoneByID(ctx context.Context, id int) (*models.Zon
 return nil, fmt.Errorf("zone not found")
 }
 
-func (ds *benchDatastore) ListZonesByOrgID(ctx context.Context, orgID int) (*models.ZoneSlice, error) {
+func (ds *benchDatastore) ListZonesByOrgID(_ context.Context, _ int) (*models.ZoneSlice, error) {
 	return nil, nil
 }
 
-func (ds *benchDatastore) FindUserByKey(ctx context.Context, key string) (*models.User, error) {
+func (ds *benchDatastore) FindUserByKey(_ context.Context, key string) (*models.User, error) {
 	switch key {
 	case "bob":
 		return &models.User{
@@ -462,11 +482,11 @@ func (ds *benchDatastore) FindUserByKey(ctx context.Context, key string) (*model
 	return nil, fmt.Errorf("user not found")
 }
 
-func (ds *benchDatastore) GetUserRoles(ctx context.Context, user *models.User) (models.RoleSlice, error) {
+func (ds *benchDatastore) GetUserRoles(_ context.Context, _ *models.User) (models.RoleSlice, error) {
 	return nil, nil
 }
 
-func (ds *benchDatastore) GetUserRolesAndPolicies(ctx context.Context, userID int) ([]*datastore.DenormalizedRole, error) {
+func (ds *benchDatastore) GetUserRolesAndPolicies(_ context.Context, userID int) ([]*datastore.DenormalizedRole, error) {
 	switch userID {
 	case 1:
 		return ds.denormRoles, nil
@@ -475,7 +495,7 @@ func (ds *benchDatastore) GetUserRolesAndPolicies(ctx context.Context, userID in
 	return nil, fmt.Errorf("role not found for user")
 }
 
-func (ds *benchDatastore) GetUserDerivedRoles(ctx context.Context, userID int) (datastore.DerivedRoles, error){
+func (ds *benchDatastore) GetUserDerivedRoles(_ context.Context, userID int) (datastore.DerivedRoles, error){
 	switch userID {
 	case 1:
 		return ds.derivedRoles, nil
@@ -484,7 +504,7 @@ func (ds *benchDatastore) GetUserDerivedRoles(ctx context.Context, userID int) (
 	return nil, fmt.Errorf("role not found for user")
 }
 
-func (ds *benchDatastore) GetEffectivePerms(ctx context.Context, userID int) (datastore.EffectivePerms, error){
+func (ds *benchDatastore) GetEffectivePerms(_ context.Context, userID int) (datastore.EffectivePerms, error){
 	switch userID {
 	case 1:
 		return ds.permissions, nil

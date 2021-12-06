@@ -9,6 +9,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/mburtless/oso-rbac-iam/datastore"
 	"github.com/mburtless/oso-rbac-iam/models"
+	"github.com/mburtless/oso-rbac-iam/pkg/matchers"
 	"github.com/mburtless/oso-rbac-iam/pkg/roles"
 	"github.com/osohq/go-oso"
 	"go.uber.org/zap"
@@ -98,6 +99,7 @@ func initOso() error {
 	osoClient.RegisterClass(reflect.TypeOf(datastore.DerivedRoles{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(datastore.EffectivePerms{}), nil)
 	osoClient.RegisterClass(reflect.TypeOf(DerivedUser{}), nil)
+	osoClient.RegisterClass(reflect.TypeOf(matchers.HasSuffix{}), nil)
 
 	if err := osoClient.LoadFiles([]string{"iam.polar"}); err != nil {
 		return err

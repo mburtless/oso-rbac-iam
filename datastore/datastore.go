@@ -68,18 +68,29 @@ func (ds *datastore) GetUserRoles(ctx context.Context, user *models.User) (model
 
 func (ds *datastore) GetUserRolesAndPolicies(ctx context.Context, userID int) ([]*DenormalizedRole, error) {
 	var dr []*DenormalizedRole
+	// TODO: optimize query for new EffectivePerms datastrucuture?
+	// TODO: support conditions
 	err := models.NewQuery(
-		qm.Select("role.*", "policy.*"),
+		qm.Select(
+			"role.*",
+			"policy.*",
+			"COALESCE(c.condition_id, 0) as condition_id",
+			"c.type as type",
+			"c.value as value"),
 		qm.From("user_roles"),
 		qm.InnerJoin("role on user_roles.role_id = role.role_id"),
 		qm.InnerJoin("role_policies on user_roles.role_id = role.role_id"),
 		qm.InnerJoin("policy on role_policies.policy_id = policy.policy_id"),
 		qm.And("user_roles.user_id = ?", userID),
 		qm.And("role_policies.role_id = role.role_id"),
+		qm.LeftOuterJoin("condition_policies cp on policy.policy_id = cp.policy_id"),
+		qm.LeftOuterJoin("condition c on c.condition_id = cp.condition_id"),
 		).Bind(ctx, ds.db, &dr)
 	if err != nil {
 		return nil, err
 	}
+
+
 	ds.logger.Debugw("found denorm roles for user", "roles", dr)
 	return dr, nil
 }
@@ -106,17 +117,8 @@ func (ds *datastore) GetEffectivePerms(ctx context.Context, userID int) (Effecti
 	return ToEffectivePerms(drs), nil
 }
 
-// TODO: try to delete this by integrating matchers in a different way?
-func toZone(z *models.Zone) *Zone {
-	return &Zone{
-		Id: z.ZoneID,
-		Name: z.Name,
-		Org: z.OrgID,
-		ResourceName: z.ResourceName,
-	}
-}
-
 // Zone resource
+// Deprecated: use models.Zone instead
 type Zone struct {
 	Id           int
 	Name         string
@@ -164,7 +166,7 @@ func ToDerivedRoleMap(denormRoles []*DenormalizedRole) DerivedRoles {
 		}
 		// if so, condition must be missing from policy.  Append it.
 		if cond := ToCondition(denormRole.Condition); cond != nil {
-			derivedRoles[roleID].Policies[policyID].Conditions = append(derivedRoles[roleID].Policies[policyID].Conditions, *cond)
+			derivedRoles[roleID].Policies[policyID].Conditions[denormRole.ConditionID] = cond
 		}
 		//derivedRoles[denormRole.Role.RoleID].Policies = append(derivedRoles[denormRole.Role.RoleID].Policies, ToPolicy(&denormRole.Policy, &denormRole.Condition))
 	}
@@ -202,7 +204,9 @@ func ToPolicy(policy *models.Policy) *roles.RolePolicy {
 		Effect:     policy.Effect,
 		Actions:    policy.Actions,
 		Resource:   roles.PolicyResourceName(policy.ResourceName),
-		Conditions: []roles.Condition{},
+		Conditions: map[int]*roles.Condition{
+
+		},
 	}
 }
 
@@ -216,18 +220,49 @@ func ToEffectivePerms(denormRoles []*DenormalizedRole) EffectivePerms {
 	for _, denormRole := range denormRoles {
 		// convert policy
 		p := ToPolicy(&denormRole.Policy)
-		t, err := p.Resource.GetType()
+		c := ToCondition(denormRole.Condition)
+		// TODO: add this back in to enable quick namespace checking by svc type?
+		/*t, err := p.Resource.GetType()
 		if err != nil {
 			// invalid resource type, continue
 			continue
 		}
 		// cache resource name in namespaces
-		perms.Namespaces[t] = append(perms.Namespaces[t], string(p.Resource))
+		perms.Namespaces[t] = append(perms.Namespaces[t], string(p.Resource))*/
 		// cache policy in appropriate policy store
+		// FIXME: denormRoles could contain multiple entries of same policy if they contain multiple conditions!
+		// how to dedupe in allow policies without itterating to check existence? Yet another hash table probz
 		if p.Effect == "allow" {
-			perms.AllowPolicies[string(p.Resource)] = append(perms.AllowPolicies[string(p.Resource)], p)
+			//perms.AllowPolicies[string(p.Resource)] = append(perms.AllowPolicies[string(p.Resource)], p)
+			// check if v exists for policy id key in allow policy for this namespace
+			// if so, add condition at condition id
+			if _, ok := perms.AllowPolicies[string(p.Resource)][p.ID]; ok && c != nil {
+				perms.AllowPolicies[string(p.Resource)][p.ID].Conditions[denormRole.ConditionID] = c
+			} else {
+				// if not, add policy and condition
+				if c != nil {
+					p.Conditions[denormRole.ConditionID] = c
+				}
+				if perms.AllowPolicies[string(p.Resource)] == nil {
+					perms.AllowPolicies[string(p.Resource)]	= map[int]*roles.RolePolicy{}
+				}
+
+				perms.AllowPolicies[string(p.Resource)][p.ID] = p
+			}
 		} else if p.Effect == "deny" {
-			perms.DenyPolicies[string(p.Resource)] = append(perms.DenyPolicies[string(p.Resource)], p)
+			//perms.DenyPolicies[string(p.Resource)] = append(perms.DenyPolicies[string(p.Resource)], p)
+			if _, ok := perms.DenyPolicies[string(p.Resource)][p.ID]; ok && c != nil {
+				perms.DenyPolicies[string(p.Resource)][p.ID].Conditions[denormRole.ConditionID] = c
+			} else {
+				// if not, add policy and condition
+				if c != nil {
+					p.Conditions[denormRole.ConditionID] = c
+				}
+				if perms.AllowPolicies[string(p.Resource)] == nil {
+					perms.AllowPolicies[string(p.Resource)]	= map[int]*roles.RolePolicy{}
+				}
+				perms.DenyPolicies[string(p.Resource)][p.ID] = p
+			}
 		}
 		// if effect type is unknown, continue
 	}
@@ -255,4 +290,4 @@ type EffectivePerms struct {
 }
 
 // PoliciesByNamespace is used to cache all policies, sorted by namespace they apply to
-type PoliciesByNamespace map[string][]*roles.RolePolicy
+type PoliciesByNamespace map[string]map[int]*roles.RolePolicy

@@ -3,6 +3,7 @@ package datastore
 import (
 	"github.com/mburtless/oso-rbac-iam/models"
 	"github.com/mburtless/oso-rbac-iam/pkg/roles"
+	"github.com/stretchr/testify/assert"
 	"github.com/volatiletech/sqlboiler/v4/types"
 	"reflect"
 	"testing"
@@ -20,7 +21,6 @@ func Test_ToEffectivePerms(t *testing.T) {
 			denormRoles: []*DenormalizedRole{},
 			want: EffectivePerms{},
 		},
-
 		{
 			name: "role with one policy",
 			denormRoles: []*DenormalizedRole{
@@ -37,16 +37,119 @@ func Test_ToEffectivePerms(t *testing.T) {
 			},
 			want: EffectivePerms{
 				Namespaces: map[string][]string{
-					"zone": {"oso:0:zone/foo"},
+					//"zone": {"oso:0:zone/foo"},
 				},
 				AllowPolicies: PoliciesByNamespace{
-					"oso:0:zone/foo": []*roles.RolePolicy{
-						{
+					"oso:0:zone/foo": map[int]*roles.RolePolicy{
+						1: {
 							ID: 1,
 							Effect:     "allow",
 							Actions:    []string{"view"},
 							Resource:   roles.PolicyResourceName("oso:0:zone/foo"),
-							Conditions: []roles.Condition{},
+							Conditions: map[int]*roles.Condition{},
+						},
+					},
+				},
+				DenyPolicies: PoliciesByNamespace{},
+			},
+		},
+		{
+			name: "role with policy and one condition",
+			denormRoles: []*DenormalizedRole{
+				{
+					Role: models.Role{RoleID: 1, Name: "guybrush", OrgID: orgId},
+					Policy: models.Policy{
+						PolicyID: 1,
+						Name: "bar",
+						Effect: "allow",
+						Actions: types.StringArray{"view"},
+						ResourceName: "oso:0:zone/foo",
+					},
+					Condition: models.Condition{
+						ConditionID: 1,
+						Type: "matchSuffix",
+						Value: "com",
+					},
+				},
+			},
+			want: EffectivePerms{
+				Namespaces: map[string][]string{
+					//"zone": {"oso:0:zone/foo"},
+				},
+				AllowPolicies: PoliciesByNamespace{
+					"oso:0:zone/foo": map[int]*roles.RolePolicy{
+						1: {
+							ID: 1,
+							Effect:     "allow",
+							Actions:    []string{"view"},
+							Resource:   roles.PolicyResourceName("oso:0:zone/foo"),
+							Conditions: map[int]*roles.Condition{
+								1: {
+									Type: "matchSuffix",
+									Value: "com",
+								},
+							},
+						},
+					},
+				},
+				DenyPolicies: PoliciesByNamespace{},
+			},
+		},
+		{
+			name: "role with policy and many conditions",
+			denormRoles: []*DenormalizedRole{
+				{
+					Role: models.Role{RoleID: 1, Name: "guybrush", OrgID: orgId},
+					Policy: models.Policy{
+						PolicyID: 1,
+						Name: "bar",
+						Effect: "allow",
+						Actions: types.StringArray{"view"},
+						ResourceName: "oso:0:zone/foo",
+					},
+					Condition: models.Condition{
+						ConditionID: 1,
+						Type: "matchSuffix",
+						Value: "com",
+					},
+				},
+				{
+					Role: models.Role{RoleID: 1, Name: "guybrush", OrgID: orgId},
+					Policy: models.Policy{
+						PolicyID: 1,
+						Name: "bar",
+						Effect: "allow",
+						Actions: types.StringArray{"view"},
+						ResourceName: "oso:0:zone/foo",
+					},
+					Condition: models.Condition{
+						ConditionID: 2,
+						Type: "matchPrefix",
+						Value: "foo",
+					},
+				},
+			},
+			want: EffectivePerms{
+				Namespaces: map[string][]string{
+					//"zone": {"oso:0:zone/foo"},
+				},
+				AllowPolicies: PoliciesByNamespace{
+					"oso:0:zone/foo": map[int]*roles.RolePolicy{
+						1: {
+							ID: 1,
+							Effect:     "allow",
+							Actions:    []string{"view"},
+							Resource:   roles.PolicyResourceName("oso:0:zone/foo"),
+							Conditions: map[int]*roles.Condition{
+								1: {
+									Type: "matchSuffix",
+									Value: "com",
+								},
+								2: {
+									Type: "matchPrefix",
+									Value: "foo",
+								},
+							},
 						},
 					},
 				},
@@ -56,7 +159,7 @@ func Test_ToEffectivePerms(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := ToEffectivePerms(tt.denormRoles); !reflect.DeepEqual(got, tt.want) {
+			if got := ToEffectivePerms(tt.denormRoles); !assert.Equal(t, tt.want, got) {
 				t.Errorf("ToEffectivePerms() = %v, want %v", got, tt.want)
 			}
 		})
@@ -98,7 +201,7 @@ func Test_ToDerivedRoleMap(t *testing.T) {
 							Effect:     "allow",
 							Actions:    []string{"view"},
 							Resource:   roles.PolicyResourceName("foo"),
-							Conditions: []roles.Condition{},
+							Conditions: map[int]*roles.Condition{},
 						},
 					},
 				},
@@ -137,14 +240,14 @@ func Test_ToDerivedRoleMap(t *testing.T) {
 							Effect:     "allow",
 							Actions:    []string{"view"},
 							Resource:   roles.PolicyResourceName("foo"),
-							Conditions: []roles.Condition{},
+							Conditions: map[int]*roles.Condition{},
 						},
 						2: {
 							ID: 2,
 							Effect:     "allow",
 							Actions:    []string{"delete"},
 							Resource:   roles.PolicyResourceName("foo"),
-							Conditions: []roles.Condition{},
+							Conditions: map[int]*roles.Condition{},
 						},
 					},
 				},
