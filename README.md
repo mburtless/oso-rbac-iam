@@ -7,7 +7,7 @@ PoC of an authorization model that utilizes roles with IAM like policies using [
 
 2. Run server: `go run .`
 
-3. Curl localhost with `x-api-key` header set to user you wish to test with:  `curl -H "x-api-key: tom" http://localhost:5000/zone/1`
+3. Curl localhost with `x-api-key` header set to user you wish to test with:  `curl -H "x-api-key: $USER_NAME" http://localhost:5000/zone/$ZONE_ID`
 
 ### Users for Testing
 * `bob` can `GET` all zones and `DELETE` zone `2` (`react.net`)
