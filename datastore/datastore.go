@@ -13,6 +13,7 @@ import (
 type Datastore interface {
 	FindZoneByID(ctx context.Context, id int) (*models.Zone, error)
 	ListZonesByOrgID(ctx context.Context, orgID int) (*models.ZoneSlice, error)
+	ListUsersByOrgID(ctx context.Context, orgID int) (*models.UserSlice, error)
 	FindUserByKey(ctx context.Context, key string) (*models.User, error)
 	GetUserRoles(ctx context.Context, user *models.User) (models.RoleSlice, error)
 	GetUserRolesAndPolicies(ctx context.Context, userID int) ([]*DenormalizedRole, error)
@@ -44,6 +45,14 @@ func (ds *datastore) ListZonesByOrgID(ctx context.Context, orgID int) (*models.Z
 	}
 	ds.logger.Debugw("found zones in PG", "zone", zs)
 	return &zs, nil
+}
+
+func (ds *datastore) ListUsersByOrgID(ctx context.Context, orgID int) (*models.UserSlice, error) {
+	us, err := models.Users(qm.Where("org_id = ?", orgID)).All(ctx, ds.db)
+	if err != nil {
+		return nil, err
+	}
+	return &us, nil
 }
 
 func (ds *datastore) FindUserByKey(ctx context.Context, key string) (*models.User, error) {
