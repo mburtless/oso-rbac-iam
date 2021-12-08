@@ -8,19 +8,11 @@ allow(user: DerivedUser, action: String, resource) if
 
 some_allow(user: DerivedUser, action: String, resource) if
     # policy exists in allow policies for resource
-    #[key, policies] in user.Permissions.AllowPolicies and
-    #key_contains_resource_name(key, resource) and
     (["oso:0:zone/*", policies] in user.Permissions.AllowPolicies or
     [(resource.ResourceName), policies] in user.Permissions.AllowPolicies) and
     # policy allows action
     [_, policy] in policies and
     check_policy(policy, action, resource);
-
-key_contains_resource_name(key, _resource: Zone) if
-    key = "oso:0:zone/*";
-
-key_contains_resource_name(key, resource: Zone) if
-    key = resource.ResourceName;
 
 no_deny(user: DerivedUser, action: String, resource) if
     forall(
@@ -48,13 +40,6 @@ conditions_hold(policy, resource) if
     forall(
         [_, condition] in policy.Conditions,
         check_conditions(condition, resource)
-    );
-
-# matchAttributes type policy
-check_conditions(condition, resource) if
-    condition.Type = "matchAttributes" and
-    forall([k, v] in condition.Value,
-        resource.(k) = v
     );
 
 # matchSuffix type policy

@@ -59,6 +59,10 @@ func setup(ds datastore.Datastore) *fiber.App {
 	})
 
 	// Endpoints
+	app.Get("/user", func(c *fiber.Ctx) error {
+		return listUsersRoute(c, ds)
+	})
+
 	app.Get("/zone/:zoneId", func(c *fiber.Ctx) error {
 		return getZoneRoute(c, ds)
 	})

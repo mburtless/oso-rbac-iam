@@ -57,13 +57,15 @@ func getZoneRoute(c *fiber.Ctx, ds datastore.Datastore) error {
 	return c.Status(200).SendString(fmt.Sprintf("<h1>A Repo</h1><p>Welcome %s to zone %s</p>", reqUser.User.Name, z.Name))
 }
 
+// unauthed
 func listZonesRoute(c *fiber.Ctx, ds datastore.Datastore) error {
 	c.Set(fiber.HeaderContentType, fiber.MIMETextHTML)
-	// get all zones in org
 	reqUser, err := getReqMeta(c)
 	if err != nil {
 		return c.Status(401).SendString(errHTMLUserNotFound)
 	}
+
+	// get all zones in org
 	zs, err := ds.ListZonesByOrgID(context.Background(), reqUser.User.OrgID)
 	if err != nil {
 		logger.Errorw("error listing zones for org", "orgID", reqUser.User.OrgID, "error", err)
@@ -74,7 +76,33 @@ func listZonesRoute(c *fiber.Ctx, ds datastore.Datastore) error {
 	for _, z := range *zs {
 		zoneNames = append(zoneNames, z.Name)
 	}
-	return c.Status(200).SendString(fmt.Sprintf("<h1>A Repo</h1><p>%s</p>", strings.Join(zoneNames, ",")))
+	return c.Status(200).SendString(
+		fmt.Sprintf("<h1>Zones</h1><p>%s</p>", strings.Join(zoneNames, ",")),
+	)
+}
+
+// unauthed
+func listUsersRoute(c *fiber.Ctx, ds datastore.Datastore) error {
+	c.Set(fiber.HeaderContentType, fiber.MIMETextHTML)
+	reqUser, err := getReqMeta(c)
+	if err != nil {
+		return c.Status(401).SendString(errHTMLUserNotFound)
+	}
+
+	// get all users in org
+	us, err := ds.ListUsersByOrgID(context.Background(), reqUser.User.OrgID)
+	if err != nil {
+		logger.Errorw("error listing users for org", "orgID", reqUser.User.OrgID, "error", err)
+		return c.Status(404).SendString(errHTMLZonesNotFound)
+	}
+
+	var userNames []string
+	for _, u := range *us {
+		userNames = append(userNames, u.Name)
+	}
+	return c.Status(200).SendString(
+		fmt.Sprintf("<h1>Users</h1><p>%s</p>", strings.Join(userNames, ",")),
+	)
 }
 
 // gets the zone requested in zoneId param

@@ -238,6 +238,16 @@ func (ds *mockDatastore) ListZonesByOrgID(_ context.Context, _ int) (*models.Zon
 	return nil, nil
 }
 
+func (ds *mockDatastore) ListUsersByOrgID(ctx context.Context, orgID int) (*models.UserSlice, error) {
+	us := models.UserSlice{
+		{UserID: 1, Name: "john", APIKey: "john", OrgID: 2000},
+		{UserID: 2, Name: "bob", APIKey: "bob", OrgID: 2000},
+		{UserID: 3, Name: "tom", APIKey: "tom", OrgID: 2000},
+		{UserID: 4, Name: "jim", APIKey: "jim", OrgID: 2000},
+	}
+	return &us, nil
+}
+
 func (ds *mockDatastore) FindUserByKey(_ context.Context, key string) (*models.User, error) {
 	keyToID := map[string]int{
 		"john": 1,
@@ -412,6 +422,10 @@ func (ds *benchDatastore) FindUserByKey(_ context.Context, key string) (*models.
 }
 
 func (ds *benchDatastore) GetUserRoles(_ context.Context, _ *models.User) (models.RoleSlice, error) {
+	return nil, nil
+}
+
+func (ds *benchDatastore) ListUsersByOrgID(_ context.Context, _ int) (*models.UserSlice, error) {
 	return nil, nil
 }
 
